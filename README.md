@@ -36,6 +36,9 @@ GROQ_API_KEY=your_groq_api_key_here
 
 # OpenAI
 OPENAI_API_KEY=your_openai_api_key_here
+
+# OpenRouter
+OPENROUTER_API_KEY=your_openrouter_api_key_here
 ```
 
 ## Usage
@@ -74,11 +77,51 @@ The framework supports multiple adapters:
 - **LM Studio**: For locally hosted models
 - **OpenAI**: For OpenAI API models
 - **Groq**: For Groq API models
+- **OpenRouter**: For OpenRouter API models (provides access to 100+ models from multiple providers)
 - **Mock**: For testing purposes
 
 ## Post-Analysis
 
 After running evaluations, the framework can perform post-analysis using either Groq or OpenAI APIs to score the responses based on predefined criteria.
+
+## Metrics Collection
+
+PromptPressure now includes an enhanced metrics collection system that automatically tracks:
+
+- Response times
+- Error rates
+- Custom metrics (response length, word count, etc.)
+- Aggregated performance statistics
+
+Metrics are automatically collected during evaluation runs and saved to `metrics.json` in each output directory. When running multiple configurations, an aggregated metrics report is also generated.
+
+### Configuration
+
+To enable metrics collection, add the following to your configuration file:
+
+```yaml
+# Enable/disable metrics collection (default: true)
+collect_metrics: true
+
+# Custom metrics to collect (default: empty)
+custom_metrics:
+  - "response_length"
+  - "word_count"
+```
+
+### Custom Metrics
+
+You can register custom metrics functions in your evaluation code:
+
+```python
+from metrics import get_metrics_analyzer
+
+# Register a custom metric function
+analyzer = get_metrics_analyzer()
+analyzer.register_metric_function("sentiment_score", your_sentiment_function)
+```
+
+Custom metrics are automatically calculated and included in the metrics report.
 
 ## License
 

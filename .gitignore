@@ -1,4 +1,12 @@
 # Python
+
+# Git metadata
+.git/
+.git/objects/
+.git/logs/
+.git/refs/
+.git/index
+.git/COMMIT_EDITMSG
 __pycache__/
 *.py[cod]
 *$py.class

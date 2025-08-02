@@ -1,0 +1,21 @@
+# Example configuration with metrics collection enabled
+adapter: "openai"
+model: "gpt-3.5-turbo"
+model_name: "GPT-3.5 Turbo"
+dataset: "evals_dataset.json"
+output: "results.csv"
+temperature: 0.7
+
+# Metrics configuration
+# Enable/disable metrics collection
+collect_metrics: true
+
+# Custom metrics to collect (extensible)
+custom_metrics:
+  - "response_length"
+  - "word_count"
+  - "sentiment_score"
+
+# API configuration
+openai_api_key: ""
+# Note: Empty string will fall back to OPENAI_API_KEY environment variable

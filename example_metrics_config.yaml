@@ -1,0 +1,11 @@
+adapter: mock
+collect_metrics: true
+custom_metrics:
+- response_length
+- word_count
+- sentiment_score
+dataset: evals_dataset.json
+model: test-model
+model_name: Test Model
+output: example_results.csv
+temperature: 0.7

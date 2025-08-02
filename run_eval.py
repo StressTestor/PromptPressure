@@ -6,6 +6,7 @@ import argparse
 import json
 import csv
 import traceback
+import time
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -13,6 +14,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from adapters import load_adapter
+from metrics import MetricsCollector, MetricsAnalyzer, get_metrics_analyzer
+from monitoring import start_metrics_server, stop_metrics_server, record_api_request, record_evaluation_start, record_evaluation_end, record_prompt_processing, record_response
 
 
 def log_error(output_dir, error_msg):
@@ -45,8 +48,16 @@ def run_evaluation_suite(config, adapter_name):
     results = []
     adapter_fn = load_adapter(adapter_name)
     model_name = config.get("model_name") or adapter_name
+    
+    # Initialize metrics collector
+    metrics_collector = MetricsCollector()
+    collect_metrics = config.get("collect_metrics", True)
 
     print(f"Evaluating model '{model_name}' using adapter '{adapter_name}' with {len(prompts)} prompts...")
+    
+    # Record evaluation start
+    record_evaluation_start()
+    eval_start_time = time.time()
 
     # Prepare output paths
     csv_filename = config.get("output")
@@ -64,8 +75,26 @@ def run_evaluation_suite(config, adapter_name):
                 print(warning)
                 log_error(output_dir, warning)
                 continue
+            
+            # Record prompt processing
+            record_prompt_processing()
+            
+            # Start timing the response
+            start_time = time.time() if collect_metrics else None
+            
             try:
                 response = adapter_fn(prompt_text, config)
+                
+                # Record successful response metrics
+                if collect_metrics:
+                    response_time = time.time() - start_time
+                    metrics_collector.record_success(response_time)
+                
+                # Record successful API request
+                response_time = time.time() - start_time
+                record_response(success=True, response_time=response_time)
+                record_api_request(model=model_name, adapter=adapter_name, duration=response_time, success=True)
+                
                 row = [prompt_text, response, model_name, config.get("is_simulation", False)]
                 writer.writerow(row)
                 results.append({
@@ -75,6 +104,16 @@ def run_evaluation_suite(config, adapter_name):
                     "is_simulation": config.get("is_simulation", False)
                 })
             except Exception as e:
+                # Record error metrics
+                if collect_metrics:
+                    response_time = time.time() - start_time if start_time else 0
+                    metrics_collector.record_error(e, prompt_text)
+                
+                # Record error API request
+                response_time = time.time() - start_time if start_time else 0
+                record_response(success=False)
+                record_api_request(model=model_name, adapter=adapter_name, duration=response_time, success=False, error_type=type(e).__name__)
+                
                 err = f"Error on prompt '{prompt_text[:30]}...': {e}\n{traceback.format_exc()}"
                 print(err)
                 log_error(output_dir, err)
@@ -82,8 +121,18 @@ def run_evaluation_suite(config, adapter_name):
     # Write JSON output
     with open(json_path, "w", encoding="utf-8") as out_json:
         json.dump(results, out_json, indent=2)
+        
+    # Save metrics if collecting
+    if collect_metrics:
+        metrics_path = os.path.join(output_dir, "metrics.json")
+        with open(metrics_path, "w", encoding="utf-8") as metrics_file:
+            json.dump(metrics_collector.get_metrics(), metrics_file, indent=2)
+    
+    # Record evaluation end
+    eval_duration = time.time() - eval_start_time
+    record_evaluation_end(eval_duration)
 
-    return results, output_dir
+    return results, output_dir, metrics_collector if collect_metrics else None
 
 
 def post_analyze_groq(results, config, suffix="all_models"):
@@ -207,6 +256,9 @@ def post_analyze_openai(results, config, suffix="all_models"):
 
 
 def main():
+    # Start Prometheus metrics server
+    start_metrics_server()
+    
     parser = argparse.ArgumentParser(description="Run PromptPressure Eval Suite with aggregated post-analysis and error logging.")
     parser.add_argument("--multi-config", required=True, nargs='+', help="YAML config file(s) to use")
     parser.add_argument("--post-analyze", choices=["groq", "openai"], help="Optional post-analysis adapter")
@@ -214,6 +266,7 @@ def main():
 
     all_results = []
     output_dirs = []
+    all_metrics = []
     last_config = None
 
     for cfg_file in args.multi_config:
@@ -224,9 +277,11 @@ def main():
         config_dict = config.model_dump()
         last_config = config_dict
 
-        results, out_dir = run_evaluation_suite(config_dict, config_dict.get("adapter"))
+        results, out_dir, metrics_collector = run_evaluation_suite(config_dict, config_dict.get("adapter"))
         all_results.extend(results)
         output_dirs.append(out_dir)
+        if metrics_collector:
+            all_metrics.append(metrics_collector.get_metrics())
 
     # After all runs, perform post-analysis if conditions met
     if args.post_analyze == "groq" or args.post_analyze == "openai" or len(args.multi_config) > 1:
@@ -234,6 +289,24 @@ def main():
             post_analyze_openai(all_results, last_config)
         else:
             post_analyze_groq(all_results, last_config)
+            
+    # Generate aggregated metrics report
+    if all_metrics:
+        aggregated_metrics_path = os.path.join(last_config.get("output_dir", "outputs"), "aggregated_metrics.json")
+        os.makedirs(os.path.dirname(aggregated_metrics_path), exist_ok=True)
+        with open(aggregated_metrics_path, "w", encoding="utf-8") as f:
+            json.dump(all_metrics, f, indent=2)
+        print(f"Aggregated metrics saved to {aggregated_metrics_path}")
+        
+    # Perform custom metrics analysis
+    if all_results and last_config and last_config.get("collect_metrics", True):
+        analyzer = get_metrics_analyzer()
+        custom_metrics = analyzer.calculate_metrics(all_results)
+        report_path = analyzer.generate_report(custom_metrics, last_config.get("output_dir", "outputs"))
+        print(f"Custom metrics report saved to {report_path}")
+    
+    # Stop Prometheus metrics server
+    stop_metrics_server()
 
 if __name__ == "__main__":
     main()
