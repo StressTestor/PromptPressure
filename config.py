@@ -4,7 +4,7 @@ Handles loading and validation of configuration with secure secret management.
 """
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 from dotenv import load_dotenv
 from pydantic import Field, model_validator
@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     dataset: str = Field(..., description="Path to the evaluation dataset")
     output: str = Field(..., description="Output filename for evaluation results")
     temperature: float = Field(0.7, ge=0.0, le=2.0, description="Sampling temperature")
+    
+    # Metrics settings
+    collect_metrics: bool = Field(True, description="Whether to collect detailed metrics during evaluation")
+    custom_metrics: List[str] = Field(default_factory=list, description="List of custom metrics to collect")
 
     # API endpoints
     groq_endpoint: str = Field(
@@ -41,6 +45,10 @@ class Settings(BaseSettings):
         "https://api.openai.com/v1/chat/completions",
         description="OpenAI API endpoint"
     )
+    openrouter_endpoint: str = Field(
+        "https://openrouter.ai/api/v1/chat/completions",
+        description="OpenRouter API endpoint"
+    )
 
     # Secrets (loaded from environment variables)
     groq_api_key: Optional[str] = Field(
@@ -50,6 +58,10 @@ class Settings(BaseSettings):
     openai_api_key: Optional[str] = Field(
         None,
         description="OpenAI API key (from OPENAI_API_KEY environment variable or config)"
+    )
+    openrouter_api_key: Optional[str] = Field(
+        None,
+        description="OpenRouter API key (from OPENROUTER_API_KEY environment variable or config)"
     )
 
     @model_validator(mode='after')
@@ -76,6 +88,13 @@ class Settings(BaseSettings):
                 self.openai_api_key = env_key
             else:
                 raise ValueError("OPENAI_API_KEY is required when using the OpenAI adapter")
+        if adapter_lower == 'openrouter' and not self.openrouter_api_key:
+            # Try to get from environment if not in config
+            env_key = os.getenv("OPENROUTER_API_KEY")
+            if env_key:
+                self.openrouter_api_key = env_key
+            else:
+                raise ValueError("OPENROUTER_API_KEY is required when using the OpenRouter adapter")
         return self
 
 

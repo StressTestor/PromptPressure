@@ -1,0 +1,93 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "PromptPressure Monitoring",
+    "tags": ["promptpressure", "llm", "evaluation"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 0,
+    "refresh": "5s",
+    "panels": [
+      {
+        "id": 1,
+        "type": "graph",
+        "title": "API Request Rate",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(promptpressure_api_requests_total[5m])",
+            "legendFormat": "{{model}} - {{adapter}} - {{status}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "reqps", "label": "Requests per second"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 2,
+        "type": "graph",
+        "title": "Average Response Time",
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "promptpressure_average_response_time_seconds",
+            "legendFormat": "Average Response Time"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Seconds"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 3,
+        "type": "stat",
+        "title": "Total Prompts Processed",
+        "gridPos": {"x": 0, "y": 8, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "promptpressure_total_prompts"
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "calcs": ["last"]
+          }
+        }
+      },
+      {
+        "id": 4,
+        "type": "stat",
+        "title": "Active Evaluations",
+        "gridPos": {"x": 6, "y": 8, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "promptpressure_active_evaluations"
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "calcs": ["last"]
+          }
+        }
+      },
+      {
+        "id": 5,
+        "type": "graph",
+        "title": "Error Rate",
+        "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(promptpressure_api_errors_total[5m])",
+            "legendFormat": "{{model}} - {{adapter}} - {{error_type}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "reqps", "label": "Errors per second"},
+          {"format": "short"}
+        ]
+      }
+    ]
+  }
+}

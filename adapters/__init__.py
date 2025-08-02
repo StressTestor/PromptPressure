@@ -6,6 +6,7 @@ from .groq_adapter import generate_response as groq_generate_response
 from .lmstudio_adapter import load_adapter as lmstudio_adapter_loader
 from .mock_adapter import generate_response as mock_generate_response
 from .openai_adapter import generate_response as openai_generate_response
+from .openrouter_adapter import generate_response as openrouter_generate_response
 
 
 def load_adapter(name):
@@ -22,4 +23,6 @@ def load_adapter(name):
         return lambda text, config: mock_generate_response(text, config.get("model_name"), config)
     if name_lower == "openai":
         return lambda text, config: openai_generate_response(text, config.get("model_name"), config)
+    if name_lower == "openrouter":
+        return lambda text, config: openrouter_generate_response(text, config.get("model_name"), config)
     raise ValueError(f"Unknown adapter: {name}")
