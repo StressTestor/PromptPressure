@@ -1,0 +1,11 @@
+adapter: openrouter
+model: openrouter/horizon-beta
+model_name: openrouter/horizon-beta
+is_simulation: false
+dataset: evals_dataset.json
+output: eval_scores_output_openrouter_horizon_beta.csv
+output_dir: outputs
+openrouter_api_key: ""  # Uses OPENROUTER_API_KEY from environment
+openrouter_endpoint: https://openrouter.ai/api/v1/chat/completions
+temperature: 0.7
+use_timestamp_output_dir: true
