@@ -17,7 +17,7 @@ try:
     # Test with a simple prompt (this will fail without an API key, but we can verify the function is callable)
     try:
         # This should fail with a ValueError about missing API key
-        adapter("Test prompt", {"model_name": "openrouter/horizon-beta"})
+        adapter("Test prompt", {"model_name": "openai/gpt-oss-20b:free"})
         print("ERROR: Expected ValueError for missing API key")
     except ValueError as e:
         if "OPENROUTER_API_KEY" in str(e):

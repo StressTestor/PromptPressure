@@ -45,7 +45,7 @@ def main(path: str) -> None:
         sys.exit(1)
 
     try:
-        data = json.loads(file_path.read_text(encoding="utf‑8"))
+        data = json.loads(file_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         print(f"✗ JSON parse error: {exc}", file=sys.stderr)
 

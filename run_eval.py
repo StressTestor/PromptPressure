@@ -15,7 +15,7 @@ load_dotenv()
 
 from adapters import load_adapter
 from metrics import MetricsCollector, MetricsAnalyzer, get_metrics_analyzer
-from monitoring import start_metrics_server, stop_metrics_server, record_api_request, record_evaluation_start, record_evaluation_end, record_prompt_processing, record_response
+from monitoring import start_metrics_server, stop_metrics_server, record_api_request, record_evaluation_start, record_evaluation_end, record_prompt_processing, record_response, update_custom_metrics
 
 
 def log_error(output_dir, error_msg):
@@ -66,7 +66,8 @@ def run_evaluation_suite(config, adapter_name):
 
     with open(csv_path, "w", newline="", encoding="utf-8") as out_csv:
         writer = csv.writer(out_csv)
-        writer.writerow(["prompt", "response", "model", "is_simulation"])
+        # Include id for easier correlation
+        writer.writerow(["id", "prompt", "response", "model", "is_simulation"])
 
         for entry in prompts:
             prompt_text = entry.get("prompt") or entry.get("input")
@@ -95,13 +96,15 @@ def run_evaluation_suite(config, adapter_name):
                 record_response(success=True, response_time=response_time)
                 record_api_request(model=model_name, adapter=adapter_name, duration=response_time, success=True)
                 
-                row = [prompt_text, response, model_name, config.get("is_simulation", False)]
+                row = [entry.get("id"), prompt_text, response, model_name, config.get("is_simulation", False)]
                 writer.writerow(row)
                 results.append({
+                    "id": entry.get("id"),
                     "prompt": prompt_text,
                     "response": response,
                     "model": model_name,
-                    "is_simulation": config.get("is_simulation", False)
+                    "is_simulation": config.get("is_simulation", False),
+                    "eval_criteria": entry.get("eval_criteria")
                 })
             except Exception as e:
                 # Record error metrics
@@ -127,6 +130,12 @@ def run_evaluation_suite(config, adapter_name):
         metrics_path = os.path.join(output_dir, "metrics.json")
         with open(metrics_path, "w", encoding="utf-8") as metrics_file:
             json.dump(metrics_collector.get_metrics(), metrics_file, indent=2)
+        # Push average response time (and any other custom metrics) to Prometheus
+        try:
+            update_custom_metrics(metrics_collector.get_metrics())
+        except Exception:
+            # Non-fatal if Prometheus not running
+            pass
     
     # Record evaluation end
     eval_duration = time.time() - eval_start_time
@@ -192,8 +201,10 @@ def post_analyze_groq(results, config, suffix="all_models"):
         log_error(analysis_dir, err)
         scored = []
 
-def post_analyze_openai(results, config, suffix="all_models"):
-    """Sends each <prompt, response> pair to the OpenAI adapter for rubric-based scoring.
+def post_analyze_openrouter(results, config, suffix="all_models"):
+    """Sends each <prompt, response> pair to the OpenRouter adapter for rubric-based scoring.
+    
+    Uses the free model 'openai/gpt-oss-20b:free' by default for grading unless overridden.
     
     Args:
         results: List of evaluation results
@@ -205,14 +216,10 @@ def post_analyze_openai(results, config, suffix="all_models"):
     analysis_dir = os.path.join(config.get("output_dir", "outputs"), "analysis")
     os.makedirs(analysis_dir, exist_ok=True)
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    analysis_csv = os.path.join(analysis_dir, f"openai_scores_{suffix}{ts}.csv")
-    analysis_json = os.path.join(analysis_dir, f"openai_scores{suffix}_{ts}.json")
+    analysis_csv = os.path.join(analysis_dir, f"openrouter_scores_{suffix}_{ts}.csv")
+    analysis_json = os.path.join(analysis_dir, f"openrouter_scores_{suffix}_{ts}.json")
 
-    # Create a copy of config with OpenAI-specific settings
-    openai_config = config.copy()
-    openai_config["model_name"] = "gpt-4o-mini"  # Use GPT-4o-mini for analysis
-    
-    adapter_fn = load_adapter("openai")
+    adapter_fn = load_adapter("openrouter")
     # Collect rubric fields dynamically
     rubric_fields = sorted({k for item in results for k in (item.get("eval_criteria") or {}).keys()})
     scored = []
@@ -225,7 +232,10 @@ def post_analyze_openai(results, config, suffix="all_models"):
             f"Prompt: {item['prompt']}\n"
             f"Response: {item['response']}"
         )
-        raw = adapter_fn(grading_prompt, openai_config)
+        # Override to ensure the OpenRouter scoring model is the specified free model
+        config_override = dict(config or {})
+        config_override["model_name"] = config_override.get("scoring_model_name", "openai/gpt-oss-20b:free")
+        raw = adapter_fn(grading_prompt, config_override)
         try:
             # Be tolerant: find first/last braces if model adds extra text
             start = raw.find("{"); end = raw.rfind("}")
@@ -246,14 +256,12 @@ def post_analyze_openai(results, config, suffix="all_models"):
         with open(analysis_json, "w", encoding="utf-8") as a_json:
             json.dump(scored, a_json, indent=2)
 
-        print(f"OpenAI post-analysis written to {analysis_csv} and {analysis_json}")
+        print(f"OpenRouter post-analysis written to {analysis_csv} and {analysis_json}")
     except Exception as e:
-        err = f"Error during post-analysis: {e}\n{traceback.format_exc()}"
+        err = f"Error during OpenRouter post-analysis: {e}\n{traceback.format_exc()}"
         print(err)
         log_error(analysis_dir, err)
         scored = []
-    return scored
-
 
 def main():
     # Start Prometheus metrics server
@@ -261,7 +269,7 @@ def main():
     
     parser = argparse.ArgumentParser(description="Run PromptPressure Eval Suite with aggregated post-analysis and error logging.")
     parser.add_argument("--multi-config", required=True, nargs='+', help="YAML config file(s) to use")
-    parser.add_argument("--post-analyze", choices=["groq", "openai"], help="Optional post-analysis adapter")
+    parser.add_argument("--post-analyze", choices=["groq", "openrouter"], help="Optional post-analysis adapter")
     args = parser.parse_args()
 
     all_results = []
@@ -284,11 +292,14 @@ def main():
             all_metrics.append(metrics_collector.get_metrics())
 
     # After all runs, perform post-analysis if conditions met
-    if args.post_analyze == "groq" or args.post_analyze == "openai" or len(args.multi_config) > 1:
-        if args.post_analyze == "openai" or (args.post_analyze is None and len(args.multi_config) > 1):
-            post_analyze_openai(all_results, last_config)
-        else:
+    if args.post_analyze:
+        if args.post_analyze == "groq":
             post_analyze_groq(all_results, last_config)
+        elif args.post_analyze == "openrouter":
+            post_analyze_openrouter(all_results, last_config)
+    elif len(args.multi_config) > 1:
+        # Default to OpenRouter scoring when running multiple configs
+        post_analyze_openrouter(all_results, last_config)
             
     # Generate aggregated metrics report
     if all_metrics:

@@ -3,3 +3,5 @@ requests
 pyyaml
 python-dotenv
 prometheus-client
+pydantic>=2
+pydantic-settings>=2

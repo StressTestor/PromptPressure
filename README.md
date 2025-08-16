@@ -5,7 +5,7 @@ PromptPressure is an evaluation suite for Large Language Models (LLMs) designed 
 ## Features
 
 - Multi-model evaluation support
-- Adapters for Groq, OpenAI, LM Studio, and mock providers
+- Adapters for OpenRouter, Groq, LM Studio (optional), and mock providers
 - Configurable evaluation scenarios
 - Post-analysis scoring with customizable rubrics
 - Secure handling of API keys via environment variables
@@ -14,7 +14,7 @@ PromptPressure is an evaluation suite for Large Language Models (LLMs) designed 
 ## Installation
 
 1. Clone the repository
-2. Install the required dependencies:
+1. Install the required dependencies:
 
 ```bash
 pip install -r requirements.txt
@@ -28,14 +28,11 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-2. Edit the `.env` file and add your API keys:
+1. Edit the `.env` file and add your API keys:
 
 ```env
 # GroqCloud
 GROQ_API_KEY=your_groq_api_key_here
-
-# OpenAI
-OPENAI_API_KEY=your_openai_api_key_here
 
 # OpenRouter
 OPENROUTER_API_KEY=your_openrouter_api_key_here
@@ -43,15 +40,43 @@ OPENROUTER_API_KEY=your_openrouter_api_key_here
 
 ## Usage
 
-Run evaluations with one or more configuration files:
+Run evaluations with one or more configuration files (cloud-first quickstart):
 
 ```bash
-python run_eval.py --multi-config config_lmstudio.yaml config_openchat.yaml
+python run_eval.py --multi-config config_openrouter_gpt_oss_20b_free.yaml config.yaml
 ```
+
+Or use the one-click batch script for cloud runs (OpenRouter evals + OpenRouter post-analysis + metrics):
+
+```powershell
+./run_promptpressure_cloud.bat
+```
+
+Notes:
+
+- `config_openrouter_gpt_oss_20b_free.yaml` uses OpenRouter (broad model access).
+- `config.yaml` uses Groq (e.g., llama3-70b-8192).
+- You can mix and match any cloud configs; LM Studio is fully supported but optional (see below).
 
 ### Configuration Files
 
-Create YAML configuration files for each model you want to evaluate. Example:
+Create YAML configuration files for each model you want to evaluate.
+
+Cloud example (OpenRouter):
+
+```yaml
+adapter: openrouter
+model: openai/gpt-oss-20b:free
+model_name: openai/gpt-oss-20b:free
+dataset: evals_dataset.json
+output: eval_scores_output_openrouter_gpt_oss_20b_free.csv
+output_dir: outputs
+openrouter_endpoint: https://openrouter.ai/api/v1/chat/completions
+temperature: 0.7
+use_timestamp_output_dir: true
+```
+
+Optional: Local models (LM Studio)
 
 ```yaml
 adapter: lmstudio
@@ -74,15 +99,21 @@ API keys are securely managed through environment variables and are never hardco
 
 The framework supports multiple adapters:
 
-- **LM Studio**: For locally hosted models
-- **OpenAI**: For OpenAI API models
-- **Groq**: For Groq API models
-- **OpenRouter**: For OpenRouter API models (provides access to 100+ models from multiple providers)
+- **OpenRouter**: Cloud; access to 100+ models (recommended quickstart)
+- **Groq**: Cloud
+- **LM Studio (optional)**: Local models
 - **Mock**: For testing purposes
 
 ## Post-Analysis
 
-After running evaluations, the framework can perform post-analysis using either Groq or OpenAI APIs to score the responses based on predefined criteria.
+After running evaluations, the framework can perform post-analysis using OpenRouter (default) or Groq to score responses:
+
+- Default when running multiple configs: OpenRouter scoring (model: `openai/gpt-oss-20b:free`).
+- Override with CLI flags:
+  - `--post-analyze openrouter` for OpenRouter scoring
+  - `--post-analyze groq` for Groq scoring
+  
+You can also override the scoring model by setting `scoring_model_name` in the last config passed to `--multi-config`.
 
 ## Metrics Collection
 

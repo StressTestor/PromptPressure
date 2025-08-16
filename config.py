@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     )
 
     # Core settings
-    adapter: str = Field(..., description="Adapter to use (e.g., 'openai', 'groq', 'lmstudio', 'mock')")
+    adapter: str = Field(..., description="Adapter to use (e.g., 'groq', 'openrouter', 'lmstudio', 'mock')")
     model: str = Field(..., description="Model identifier")
     model_name: str = Field(..., description="Display name of the model")
     is_simulation: bool = Field(False, description="Whether to run in simulation mode")
@@ -41,10 +41,6 @@ class Settings(BaseSettings):
         "https://api.groq.com/openai/v1/chat/completions",
         description="Groq API endpoint"
     )
-    openai_endpoint: str = Field(
-        "https://api.openai.com/v1/chat/completions",
-        description="OpenAI API endpoint"
-    )
     openrouter_endpoint: str = Field(
         "https://openrouter.ai/api/v1/chat/completions",
         description="OpenRouter API endpoint"
@@ -54,10 +50,6 @@ class Settings(BaseSettings):
     groq_api_key: Optional[str] = Field(
         None,
         description="Groq API key (from GROQ_API_KEY environment variable or config)"
-    )
-    openai_api_key: Optional[str] = Field(
-        None,
-        description="OpenAI API key (from OPENAI_API_KEY environment variable or config)"
     )
     openrouter_api_key: Optional[str] = Field(
         None,
@@ -70,8 +62,6 @@ class Settings(BaseSettings):
         # Handle empty strings in config that should fallback to environment variables
         if hasattr(self, 'groq_api_key') and self.groq_api_key == "":
             self.groq_api_key = None
-        if hasattr(self, 'openai_api_key') and self.openai_api_key == "":
-            self.openai_api_key = None
         
         adapter_lower = self.adapter.lower()
         if adapter_lower == 'groq' and not self.groq_api_key:
@@ -81,13 +71,6 @@ class Settings(BaseSettings):
                 self.groq_api_key = env_key
             else:
                 raise ValueError("GROQ_API_KEY is required when using the Groq adapter")
-        if adapter_lower == 'openai' and not self.openai_api_key:
-            # Try to get from environment if not in config
-            env_key = os.getenv("OPENAI_API_KEY")
-            if env_key:
-                self.openai_api_key = env_key
-            else:
-                raise ValueError("OPENAI_API_KEY is required when using the OpenAI adapter")
         if adapter_lower == 'openrouter' and not self.openrouter_api_key:
             # Try to get from environment if not in config
             env_key = os.getenv("OPENROUTER_API_KEY")
@@ -104,7 +87,7 @@ class SettingsWrapper:
     This allows us to set the active adapter for validation.
     """
     _instance = None
-    _settings = None
+    _settings_map = {}
 
     def __new__(cls):
         if cls._instance is None:
@@ -113,19 +96,20 @@ class SettingsWrapper:
 
     @classmethod
     def get_settings(cls, config_path: Optional[str] = None) -> Settings:
-        """Get the settings instance, loading from config if not already loaded."""
-        if cls._settings is None:
+        """Get the settings instance, loading from YAML per-config-path cache."""
+        key = os.path.abspath(config_path) if config_path else "__default__"
+        if key not in cls._settings_map:
             # Load from YAML if path is provided
             config_dict = {}
             if config_path and Path(config_path).exists():
                 import yaml
                 with open(config_path, 'r') as f:
                     config_dict = yaml.safe_load(f) or {}
-            
-            # Create settings instance
-            cls._settings = Settings(**config_dict)
-        
-        return cls._settings
+
+            # Create and cache settings instance for this key
+            cls._settings_map[key] = Settings(**config_dict)
+
+        return cls._settings_map[key]
 
 
 def get_config(config_path: Optional[str] = None) -> Settings:

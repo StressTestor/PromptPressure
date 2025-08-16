@@ -9,7 +9,7 @@ import requests
 import time
 
 
-def generate_response(prompt, model_name="openrouter/horizon-beta", config=None):
+def generate_response(prompt, model_name="openai/gpt-oss-20b:free", config=None):
     """
     Generate a response from OpenRouter API.
     Args:

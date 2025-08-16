@@ -11,15 +11,18 @@ PromptPressure now includes built-in monitoring capabilities using Prometheus me
 The following metrics are exposed by the application on port 8000:
 
 ### API Request Metrics
+
 - `promptpressure_api_requests_total` - Total number of API requests by model, adapter, and status
 - `promptpressure_api_request_duration_seconds` - Histogram of API request durations by model and adapter
 - `promptpressure_api_errors_total` - Total number of API errors by model, adapter, and error type
 
 ### Evaluation Metrics
+
 - `promptpressure_active_evaluations` - Number of currently running evaluations
 - `promptpressure_evaluation_duration_seconds` - Summary of evaluation durations
 
 ### Response Metrics
+
 - `promptpressure_total_prompts` - Total number of prompts processed
 - `promptpressure_successful_responses_total` - Total number of successful responses
 - `promptpressure_error_responses_total` - Total number of error responses
@@ -31,7 +34,7 @@ The following metrics are exposed by the application on port 8000:
 
 The required dependencies are automatically included in `requirements.txt`:
 
-```
+```text
 prometheus-client
 ```
 
@@ -46,14 +49,25 @@ pip install -r requirements.txt
 When you run the evaluation suite, the Prometheus metrics server will automatically start on port 8000:
 
 ```bash
-python run_eval.py --multi-config config.yaml
+python run_eval.py --multi-config config_openrouter_gpt_oss_20b_free.yaml config.yaml
 ```
+
+Or use the one-click batch script (OpenRouter evals + OpenRouter post-analysis + metrics):
+
+```powershell
+./run_promptpressure_cloud.bat
+```
+
+Notes:
+
+- Cloud-first quickstart: `config_openrouter_gpt_oss_20b_free.yaml` (OpenRouter) and `config.yaml` (e.g., Groq).
+- You can use any cloud provider configs; LM Studio is fully supported but optional.
 
 ### 3. Access Metrics
 
 Once the application is running, you can access the metrics endpoint at:
 
-```
+```text
 http://localhost:8000/
 ```
 
@@ -81,27 +95,32 @@ scrape_configs:
 Here are some example queries you can use in Grafana:
 
 ### API Request Rate
-```
+
+```promql
 rate(promptpressure_api_requests_total[5m])
 ```
 
 ### Success Rate
-```
+
+```promql
 promptpressure_api_requests_total{status="success"} / ignoring(status) promptpressure_api_requests_total
 ```
 
 ### Average Response Time
-```
+
+```promql
 promptpressure_average_response_time_seconds
 ```
 
 ### Error Rate
-```
+
+```promql
 rate(promptpressure_api_errors_total[5m])
 ```
 
 ### Active Evaluations
-```
+
+```promql
 promptpressure_active_evaluations
 ```
 
@@ -128,12 +147,14 @@ stop_metrics_server()
 ### Port Already in Use
 
 If you get an error that port 8000 is already in use, you can:
+
 1. Change the `METRICS_PORT` in `monitoring.py` to a different port
 2. Stop the process using port 8000
 
 ### Metrics Not Appearing
 
 If metrics are not appearing:
+
 1. Verify the application is running
 2. Check that port 8000 is accessible
 3. Verify Prometheus is scraping the endpoint
