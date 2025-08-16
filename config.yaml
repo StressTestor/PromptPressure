@@ -1,0 +1,9 @@
+adapter: groq
+model: groq
+model_name: llama3-70b-8192
+is_simulation: False
+dataset: evals_dataset.json
+output: eval_scores_output_llama3_70b_8192.csv
+groq_api_key: ""  # Uses GROQ_API_KEY from environment
+groq_endpoint: https://api.groq.com/openai/v1/chat/completions
+temperature: 0.7

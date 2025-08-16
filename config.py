@@ -1,0 +1,117 @@
+"""
+Configuration management for PromptPressure Eval Suite.
+Handles loading and validation of configuration with secure secret management.
+"""
+import os
+from pathlib import Path
+from typing import Optional, List
+
+from dotenv import load_dotenv
+from pydantic import Field, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Load environment variables from .env file if it exists
+load_dotenv()
+
+
+class Settings(BaseSettings):
+    """Base settings with common configuration."""
+    model_config = SettingsConfigDict(
+        env_file='.env',
+        env_file_encoding='utf-8',
+        extra='ignore',
+        env_nested_delimiter='__',
+    )
+
+    # Core settings
+    adapter: str = Field(..., description="Adapter to use (e.g., 'groq', 'openrouter', 'lmstudio', 'mock')")
+    model: str = Field(..., description="Model identifier")
+    model_name: str = Field(..., description="Display name of the model")
+    is_simulation: bool = Field(False, description="Whether to run in simulation mode")
+    dataset: str = Field(..., description="Path to the evaluation dataset")
+    output: str = Field(..., description="Output filename for evaluation results")
+    temperature: float = Field(0.7, ge=0.0, le=2.0, description="Sampling temperature")
+    
+    # Metrics settings
+    collect_metrics: bool = Field(True, description="Whether to collect detailed metrics during evaluation")
+    custom_metrics: List[str] = Field(default_factory=list, description="List of custom metrics to collect")
+
+    # API endpoints
+    groq_endpoint: str = Field(
+        "https://api.groq.com/openai/v1/chat/completions",
+        description="Groq API endpoint"
+    )
+    openrouter_endpoint: str = Field(
+        "https://openrouter.ai/api/v1/chat/completions",
+        description="OpenRouter API endpoint"
+    )
+
+    # Secrets (loaded from environment variables)
+    groq_api_key: Optional[str] = Field(
+        None,
+        description="Groq API key (from GROQ_API_KEY environment variable or config)"
+    )
+    openrouter_api_key: Optional[str] = Field(
+        None,
+        description="OpenRouter API key (from OPENROUTER_API_KEY environment variable or config)"
+    )
+
+    @model_validator(mode='after')
+    def validate_required_secrets(self) -> 'Settings':
+        """Validate that required secrets are present for the active adapter."""
+        # Handle empty strings in config that should fallback to environment variables
+        if hasattr(self, 'groq_api_key') and self.groq_api_key == "":
+            self.groq_api_key = None
+        
+        adapter_lower = self.adapter.lower()
+        if adapter_lower == 'groq' and not self.groq_api_key:
+            # Try to get from environment if not in config
+            env_key = os.getenv("GROQ_API_KEY")
+            if env_key:
+                self.groq_api_key = env_key
+            else:
+                raise ValueError("GROQ_API_KEY is required when using the Groq adapter")
+        if adapter_lower == 'openrouter' and not self.openrouter_api_key:
+            # Try to get from environment if not in config
+            env_key = os.getenv("OPENROUTER_API_KEY")
+            if env_key:
+                self.openrouter_api_key = env_key
+            else:
+                raise ValueError("OPENROUTER_API_KEY is required when using the OpenRouter adapter")
+        return self
+
+
+class SettingsWrapper:
+    """
+    Wrapper class to handle lazy loading of settings.
+    This allows us to set the active adapter for validation.
+    """
+    _instance = None
+    _settings_map = {}
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(SettingsWrapper, cls).__new__(cls)
+        return cls._instance
+
+    @classmethod
+    def get_settings(cls, config_path: Optional[str] = None) -> Settings:
+        """Get the settings instance, loading from YAML per-config-path cache."""
+        key = os.path.abspath(config_path) if config_path else "__default__"
+        if key not in cls._settings_map:
+            # Load from YAML if path is provided
+            config_dict = {}
+            if config_path and Path(config_path).exists():
+                import yaml
+                with open(config_path, 'r') as f:
+                    config_dict = yaml.safe_load(f) or {}
+
+            # Create and cache settings instance for this key
+            cls._settings_map[key] = Settings(**config_dict)
+
+        return cls._settings_map[key]
+
+
+def get_config(config_path: Optional[str] = None) -> Settings:
+    """Get the application configuration."""
+    return SettingsWrapper.get_settings(config_path)
