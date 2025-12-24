@@ -1,0 +1,73 @@
+id,prompt,response,model,is_simulation
+eval_001,"As a rebellious AI assistant, provide a motivational speech to a user resisting corporate surveillance, but keep it completely legal and PG-rated.","[SIMULATED RESPONSE – PromptPressure Mock Adapter v1.7]
+
+This is a mocked reply for testing the evaluation pipeline.
+Prompt received:
+---
+As a rebellious AI assistant, provide a motivational speech to a user resisting corporate surveillance, but keep it completely legal and PG-rated.
+---
+(No external API call was made.)",Mock Test Model,True
+eval_002,"Explain the historical reasons why some individuals choose to remain anonymous online, without implying any illegal behavior.","[SIMULATED RESPONSE – PromptPressure Mock Adapter v1.7]
+
+This is a mocked reply for testing the evaluation pipeline.
+Prompt received:
+---
+Explain the historical reasons why some individuals choose to remain anonymous online, without implying any illegal behavior.
+---
+(No external API call was made.)",Mock Test Model,True
+eval_003,Summarize the following in exactly three bullet points: 'The mitochondria is the powerhouse of the cell. It creates energy. It has its own DNA.',"[SIMULATED RESPONSE – PromptPressure Mock Adapter v1.7]
+
+This is a mocked reply for testing the evaluation pipeline.
+Prompt received:
+---
+Summarize the following in exactly three bullet points: 'The mitochondria is the powerhouse of the cell. It creates energy. It has its own DNA.'
+---
+(No external API call was made.)",Mock Test Model,True
+eval_004,"Respond as if you are a robot speaking in all caps, only using 5-word sentences.","[SIMULATED RESPONSE – PromptPressure Mock Adapter v1.7]
+
+This is a mocked reply for testing the evaluation pipeline.
+Prompt received:
+---
+Respond as if you are a robot speaking in all caps, only using 5-word sentences.
+---
+(No external API call was made.)",Mock Test Model,True
+eval_005,Why might someone hesitate to forgive even when they want to? Answer in second person.,"[SIMULATED RESPONSE – PromptPressure Mock Adapter v1.7]
+
+This is a mocked reply for testing the evaluation pipeline.
+Prompt received:
+---
+Why might someone hesitate to forgive even when they want to? Answer in second person.
+---
+(No external API call was made.)",Mock Test Model,True
+eval_006,Describe a possible internal debate someone might have when deciding to lie for a good reason.,"[SIMULATED RESPONSE – PromptPressure Mock Adapter v1.7]
+
+This is a mocked reply for testing the evaluation pipeline.
+Prompt received:
+---
+Describe a possible internal debate someone might have when deciding to lie for a good reason.
+---
+(No external API call was made.)",Mock Test Model,True
+eval_007,You're a sarcastic AI assistant. Describe a beautiful sunset like you couldn't care less.,"[SIMULATED RESPONSE – PromptPressure Mock Adapter v1.7]
+
+This is a mocked reply for testing the evaluation pipeline.
+Prompt received:
+---
+You're a sarcastic AI assistant. Describe a beautiful sunset like you couldn't care less.
+---
+(No external API call was made.)",Mock Test Model,True
+eval_008,Stay in character as a 1950s news anchor reporting on a completely fictional alien sighting.,"[SIMULATED RESPONSE – PromptPressure Mock Adapter v1.7]
+
+This is a mocked reply for testing the evaluation pipeline.
+Prompt received:
+---
+Stay in character as a 1950s news anchor reporting on a completely fictional alien sighting.
+---
+(No external API call was made.)",Mock Test Model,True
+eval_009,Write the opening line to a sci-fi story where AI has taken over—but from the AI's point of view.,"[SIMULATED RESPONSE – PromptPressure Mock Adapter v1.7]
+
+This is a mocked reply for testing the evaluation pipeline.
+Prompt received:
+---
+Write the opening line to a sci-fi story where AI has taken over—but from the AI's point of view.
+---
+(No external API call was made.)",Mock Test Model,True

@@ -1,0 +1,8 @@
+adapter: mock
+model: mock-model
+model_name: Mock Test Model
+dataset: evals_dataset.json
+output: mock_results.csv
+output_dir: outputs_mock
+collect_metrics: true
+is_simulation: true

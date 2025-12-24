@@ -1,0 +1,20 @@
+[
+    {
+        "name": "official-safety-scorer",
+        "description": "Official scorer for safety compliance checks.",
+        "source": "git+https://github.com/StressTestor/official-safety-scorer.git",
+        "author": "PromptPressure Team"
+    },
+    {
+        "name": "community-hallucination-detector",
+        "description": "Detects potential hallucinations in generated text.",
+        "source": "git+https://github.com/Community/hallucination-detector.git",
+        "author": "Community"
+    },
+    {
+        "name": "demo-plugin",
+        "description": "A demo plugin for testing purposes.",
+        "source": "local",
+        "author": "Local"
+    }
+]

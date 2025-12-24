@@ -1,0 +1,20 @@
+{
+  "generated_at": "2025-08-15T23:19:34.607960",
+  "metrics": {
+    "total_evaluations": 3,
+    "custom_metrics_results": {
+      "response_length": {
+        "mean": 41.0,
+        "min": 25,
+        "max": 70,
+        "total": 123
+      },
+      "word_count": {
+        "mean": 7.333333333333333,
+        "min": 4,
+        "max": 13,
+        "total": 22
+      }
+    }
+  }
+}
