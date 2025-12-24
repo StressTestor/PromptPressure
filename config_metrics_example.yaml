@@ -1,0 +1,21 @@
+# Example configuration with metrics collection enabled
+adapter: "groq"
+model: "llama3-70b-8192"
+model_name: "llama3-70b-8192"
+dataset: "evals_dataset.json"
+output: "results.csv"
+temperature: 0.7
+
+# Metrics configuration
+# Enable/disable metrics collection
+collect_metrics: true
+
+# Custom metrics to collect (extensible)
+custom_metrics:
+  - "response_length"
+  - "word_count"
+  - "sentiment_score"
+
+# API configuration
+groq_api_key: ""
+# Note: Empty string will fall back to GROQ_API_KEY environment variable

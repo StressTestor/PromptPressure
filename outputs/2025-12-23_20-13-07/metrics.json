@@ -1,0 +1,10 @@
+{
+  "total_prompts": 9,
+  "successful_responses": 9,
+  "errors": 0,
+  "total_response_time": 1.3828277587890625e-05,
+  "average_response_time": 1.5364752875434028e-06,
+  "error_details": [],
+  "custom_metrics": {},
+  "timestamp": "2025-12-23T20:13:07.998002"
+}

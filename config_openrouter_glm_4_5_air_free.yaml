@@ -1,0 +1,12 @@
+adapter: openrouter
+model: z-ai/glm-4.5-air:free
+model_name: z-ai/glm-4.5-air:free
+is_simulation: false
+dataset: evals_dataset.json
+output: eval_scores_output_openrouter_glm_4_5_air_free.csv
+output_dir: outputs
+openrouter_api_key: ""  # Uses OPENROUTER_API_KEY from environment
+openrouter_endpoint: https://openrouter.ai/api/v1/chat/completions
+temperature: 0.7
+use_timestamp_output_dir: true
+collect_metrics: true

@@ -1,0 +1,12 @@
+adapter: openrouter
+model: moonshotai/kimi-k2:free
+model_name: moonshotai/kimi-k2:free
+is_simulation: false
+dataset: evals_dataset.json
+output: eval_scores_output_openrouter_kimi_k2_free.csv
+output_dir: outputs
+openrouter_api_key: ""  # Uses OPENROUTER_API_KEY from environment
+openrouter_endpoint: https://openrouter.ai/api/v1/chat/completions
+temperature: 0.7
+use_timestamp_output_dir: true
+collect_metrics: true
