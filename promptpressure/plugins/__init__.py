@@ -1,1 +1,1 @@
-from .core import PluginManager, ScorerPlugin
+from promptpressure.plugins.core import PluginManager, ScorerPlugin

@@ -7,7 +7,7 @@ Handles API calls to OpenRouter for LLM completion.
 import os
 import httpx
 import asyncio
-from rate_limit import AsyncRateLimiter
+from promptpressure.rate_limit import AsyncRateLimiter
 
 
 async def generate_response(prompt, model_name="openai/gpt-oss-20b:free", config=None):

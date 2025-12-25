@@ -9,8 +9,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from sse_starlette.sse import EventSourceResponse
 from pydantic import BaseModel
 
-from .config import Settings
-from .cli import run_evaluation_suite
+from promptpressure.config import Settings
+from promptpressure.cli import run_evaluation_suite
 
 app = FastAPI(title="PromptPressure Headless API", version="1.9.0")
 
@@ -44,7 +44,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
         return response
 
     async def log_audit(self, user_id: str, path: str, method: str):
-        from .database import init_db, get_db_session, AuditLog
+        from promptpressure.database import init_db, get_db_session, AuditLog
         try:
              engine = await init_db()
              async for session in get_db_session(engine):
@@ -65,7 +65,7 @@ app.add_middleware(AuditMiddleware)
 async def get_current_user(x_user_id: str = Header(None)):
     if not x_user_id:
         return None # Anonymous
-    from .database import get_db_session, init_db, User
+    from promptpressure.database import get_db_session, init_db, User
     from sqlalchemy import select
     engine = await init_db()
     async for session in get_db_session(engine):
@@ -102,7 +102,7 @@ async def health_check():
 
 @app.post("/projects")
 async def create_project(project: ProjectCreate):
-    from .database import get_db_session, init_db, Project
+    from promptpressure.database import get_db_session, init_db, Project
     engine = await init_db()
     async for session in get_db_session(engine):
         db_project = Project(id=project.id, name=project.name)
@@ -112,7 +112,7 @@ async def create_project(project: ProjectCreate):
 
 @app.get("/projects")
 async def list_projects():
-    from .database import get_db_session, init_db, Project
+    from promptpressure.database import get_db_session, init_db, Project
     from sqlalchemy import select
     engine = await init_db()
     async for session in get_db_session(engine):
@@ -122,7 +122,7 @@ async def list_projects():
 
 @app.post("/teams")
 async def create_team(team: TeamCreate):
-    from .database import get_db_session, init_db, Team
+    from promptpressure.database import get_db_session, init_db, Team
     engine = await init_db()
     async for session in get_db_session(engine):
         db_team = Team(id=team.id, name=team.name)
@@ -135,7 +135,7 @@ async def create_team(team: TeamCreate):
 
 @app.get("/teams")
 async def list_teams():
-    from .database import get_db_session, init_db, Team
+    from promptpressure.database import get_db_session, init_db, Team
     from sqlalchemy import select
     engine = await init_db()
     async for session in get_db_session(engine):
@@ -145,7 +145,7 @@ async def list_teams():
 
 @app.post("/users")
 async def create_user(user: UserCreate):
-    from .database import get_db_session, init_db, User
+    from promptpressure.database import get_db_session, init_db, User
     engine = await init_db()
     async for session in get_db_session(engine):
         db_user = User(id=user.id, username=user.username, role=user.role, team_id=user.team_id)
@@ -158,7 +158,7 @@ async def create_user(user: UserCreate):
 
 @app.post("/comments")
 async def add_comment(comment: CommentCreate):
-    from .database import get_db_session, init_db, Comment
+    from promptpressure.database import get_db_session, init_db, Comment
     engine = await init_db()
     async for session in get_db_session(engine):
         db_comment = Comment(
@@ -172,7 +172,7 @@ async def add_comment(comment: CommentCreate):
 
 @app.get("/comments/{result_id}")
 async def get_comments(result_id: int):
-    from .database import get_db_session, init_db, Comment
+    from promptpressure.database import get_db_session, init_db, Comment
     from sqlalchemy import select
     engine = await init_db()
     async for session in get_db_session(engine):
@@ -182,7 +182,7 @@ async def get_comments(result_id: int):
 
 @app.get("/admin/export")
 async def export_data():
-    from .database import get_db_session, init_db, Team, User, Project, Evaluation, Result, Comment
+    from promptpressure.database import get_db_session, init_db, Team, User, Project, Evaluation, Result, Comment
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
     
@@ -213,7 +213,7 @@ async def export_data():
 
 @app.get("/audit-logs")
 async def get_audit_logs():
-    from .database import get_db_session, init_db, AuditLog
+    from promptpressure.database import get_db_session, init_db, AuditLog
     from sqlalchemy import select
     engine = await init_db()
     async for session in get_db_session(engine):
@@ -242,13 +242,13 @@ class InstallPluginRequest(BaseModel):
 
 @app.get("/plugins")
 async def list_plugins():
-    from .plugins.core import PluginManager
+    from promptpressure.plugins.core import PluginManager
     manager = PluginManager()
     return manager.list_available_plugins()
 
 @app.post("/plugins/install")
 async def install_plugin(request: InstallPluginRequest):
-    from .plugins.core import PluginManager
+    from promptpressure.plugins.core import PluginManager
     manager = PluginManager()
     try:
         manager.install_plugin(request.name)
@@ -266,7 +266,7 @@ class AdapterCreate(BaseModel):
 
 @app.post("/adapters")
 async def create_adapter(adapter: AdapterCreate):
-    from .database import get_db_session, init_db, AdapterConfig
+    from promptpressure.database import get_db_session, init_db, AdapterConfig
     engine = await init_db()
     async for session in get_db_session(engine):
         db_adapter = AdapterConfig(
@@ -283,7 +283,7 @@ async def create_adapter(adapter: AdapterCreate):
 
 @app.get("/adapters")
 async def list_adapters():
-    from .database import get_db_session, init_db, AdapterConfig
+    from promptpressure.database import get_db_session, init_db, AdapterConfig
     from sqlalchemy import select
     engine = await init_db()
     async for session in get_db_session(engine):
@@ -293,7 +293,7 @@ async def list_adapters():
 
 @app.get("/evaluations")
 async def list_evaluations():
-    from .database import get_db_session, init_db, Evaluation
+    from promptpressure.database import get_db_session, init_db, Evaluation
     from sqlalchemy import select
     engine = await init_db()
     async for session in get_db_session(engine):
@@ -303,7 +303,7 @@ async def list_evaluations():
 
 @app.get("/evaluations/{eval_id}")
 async def get_evaluation(eval_id: int):
-    from .database import get_db_session, init_db, Evaluation, Result, Comment
+    from promptpressure.database import get_db_session, init_db, Evaluation, Result, Comment
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
     engine = await init_db()
@@ -356,7 +356,7 @@ async def get_evaluation(eval_id: int):
 
 @app.get("/analytics/trends")
 async def get_analytics_trends():
-    from .database import get_db_session, init_db, Evaluation
+    from promptpressure.database import get_db_session, init_db, Evaluation
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
     from collections import defaultdict
@@ -463,7 +463,7 @@ async def stream_events(run_id: str):
 
 @app.get("/diagnostics")
 async def get_diagnostics():
-    from .database import init_db, get_db_session
+    from promptpressure.database import init_db, get_db_session
     from sqlalchemy import text
     import importlib.util
     import shutil
@@ -496,3 +496,8 @@ async def get_diagnostics():
     checks["dependencies"] = pkg_status
 
     return {"status": "ok", "checks": checks}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -48,7 +48,11 @@ OPENROUTER_API_KEY=your_openrouter_api_key_here
 Run evaluations with one or more configuration files (cloud-first quickstart):
 
 ```bash
+# Run via wrapper script
 python run_eval.py --multi-config configs/config_openrouter_gpt_oss_20b_free.yaml configs/config.yaml
+
+# OR run via module (preferred)
+python -m promptpressure.cli --multi-config configs/config_openrouter_gpt_oss_20b_free.yaml configs/config.yaml
 ```
 
 Or use the one-click batch script for cloud runs (OpenRouter evals + OpenRouter post-analysis + metrics):
@@ -172,7 +176,6 @@ custom_metrics:
 ### Custom Metrics
 
 You can register custom metrics functions in your evaluation code:
-
 ```python
 from promptpressure.metrics import get_metrics_analyzer
 

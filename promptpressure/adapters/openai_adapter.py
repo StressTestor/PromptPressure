@@ -7,7 +7,7 @@ Handles API calls to OpenAI for LLM completion.
 import os
 import httpx
 import asyncio
-from rate_limit import AsyncRateLimiter
+from promptpressure.rate_limit import AsyncRateLimiter
 
 async def generate_response(prompt, model_name="gpt-4-1106-preview", config=None):
     """

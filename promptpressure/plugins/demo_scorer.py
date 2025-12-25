@@ -1,4 +1,4 @@
-from .core import ScorerPlugin
+from promptpressure.plugins.core import ScorerPlugin
 from typing import Dict, Any
 
 class LengthScorer(ScorerPlugin):

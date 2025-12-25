@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 import httpx
 import asyncio
-from rate_limit import AsyncRateLimiter
+from promptpressure.rate_limit import AsyncRateLimiter
 
 # Auto-load environment variables from .env in repo root
 dotenv_path = os.path.join(os.path.dirname(__file__), os.pardir, ".env")
