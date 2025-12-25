@@ -48,7 +48,7 @@ OPENROUTER_API_KEY=your_openrouter_api_key_here
 Run evaluations with one or more configuration files (cloud-first quickstart):
 
 ```bash
-python run_eval.py --multi-config config_openrouter_gpt_oss_20b_free.yaml config.yaml
+python run_eval.py --multi-config configs/config_openrouter_gpt_oss_20b_free.yaml configs/config.yaml
 ```
 
 Or use the one-click batch script for cloud runs (OpenRouter evals + OpenRouter post-analysis + metrics):
@@ -59,7 +59,8 @@ Or use the one-click batch script for cloud runs (OpenRouter evals + OpenRouter 
 
 Notes:
 
-- `config_openrouter_gpt_oss_20b_free.yaml` uses OpenRouter (broad model access).
+- Configuration files are now located in the `configs/` directory.
+- `configs/config_openrouter_gpt_oss_20b_free.yaml` uses OpenRouter (broad model access).
 - `config.yaml` uses Groq (e.g., llama3-70b-8192).
 - You can mix and match any cloud configs; LM Studio is fully supported but optional (see below).
 
@@ -173,7 +174,7 @@ custom_metrics:
 You can register custom metrics functions in your evaluation code:
 
 ```python
-from metrics import get_metrics_analyzer
+from promptpressure.metrics import get_metrics_analyzer
 
 # Register a custom metric function
 analyzer = get_metrics_analyzer()
