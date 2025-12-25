@@ -3,7 +3,7 @@ __pycache__/
 *.pyc
 *.log
 .pytest_cache/
-promptpressure.db
+data/
 .DS_Store
 venv/
 .env

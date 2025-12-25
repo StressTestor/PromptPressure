@@ -7,7 +7,14 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy import String, Text, DateTime, Float, ForeignKey, Integer, Boolean, JSON
 
 # Use SQLite by default, but allow override for PostgreSQL
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///promptpressure.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///data/promptpressure.db")
+
+# Ensure valid data directory for sqlite default
+if "sqlite" in DATABASE_URL and "data/" in DATABASE_URL:
+    try:
+        os.makedirs("data", exist_ok=True)
+    except Exception:
+        pass
 
 class Base(DeclarativeBase):
     pass
