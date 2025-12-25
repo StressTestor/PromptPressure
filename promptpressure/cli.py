@@ -13,11 +13,11 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-from .adapters import load_adapter
-from .metrics import MetricsCollector, get_metrics_analyzer
-from .monitoring import start_metrics_server, stop_metrics_server, record_api_request, record_evaluation_start, record_evaluation_end, record_prompt_processing, record_response, update_custom_metrics
-from .reporting import ReportGenerator
-from .database import init_db, get_db_session, Evaluation, Result, Metric, DATABASE_URL
+from promptpressure.adapters import load_adapter
+from promptpressure.metrics import MetricsCollector, get_metrics_analyzer
+from promptpressure.monitoring import start_metrics_server, stop_metrics_server, record_api_request, record_evaluation_start, record_evaluation_end, record_prompt_processing, record_response, update_custom_metrics
+from promptpressure.reporting import ReportGenerator
+from promptpressure.database import init_db, get_db_session, Evaluation, Result, Metric, DATABASE_URL
 
 def log_error(output_dir, error_msg):
     log_path = os.path.join(output_dir, "error.log")
@@ -56,7 +56,7 @@ async def run_evaluation_suite(config, adapter_name):
     
     # Check for Dynamic Adapter Config
     async for session in get_db_session(engine):
-        from .database import AdapterConfig
+        from promptpressure.database import AdapterConfig
         db_adapter = await session.get(AdapterConfig, adapter_name)
         if db_adapter:
             print(f"Loaded dynamic adapter configuration for '{adapter_name}' (Base: {db_adapter.base_type})")
@@ -98,7 +98,7 @@ async def run_evaluation_suite(config, adapter_name):
     eval_start_time = time.time()
 
     # Initialize Plugin Manager
-    from .plugins import PluginManager
+    from promptpressure.plugins import PluginManager
     plugin_manager = PluginManager()
     plugin_manager.load_plugins()
 
@@ -376,13 +376,13 @@ async def main_async():
     args = parser.parse_args()
 
     if args.schema:
-        from .config import Settings
+        from promptpressure.config import Settings
         print(json.dumps(Settings.model_json_schema(), indent=2))
         return
 
     # Handle Plugin CLI
     if args.command == "plugins":
-        from .plugins.core import PluginManager
+        from promptpressure.plugins.core import PluginManager
         manager = PluginManager()
         
         if args.plugin_command == "list":
@@ -411,7 +411,7 @@ async def main_async():
     last_config = None
 
     for cfg_file in args.multi_config:
-        from .config import get_config
+        from promptpressure.config import get_config
         config = get_config(cfg_file)
         config_dict = config.model_dump()
         last_config = config_dict

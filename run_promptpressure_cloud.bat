@@ -15,7 +15,7 @@ echo Metrics will be exposed at http://localhost:8000 while the run is active.
 echo.
 rem — Gather all OpenRouter configs —
 set "CONFIGS="
-for %%F in (config_*.yaml) do (
+for %%F in (configs\config_*.yaml) do (
     findstr /ri "^[ ]*adapter:[ ]*openrouter" "%%F" >nul 2>&1 && (
         set "CONFIGS=!CONFIGS! %%F"
     )

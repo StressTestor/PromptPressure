@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "promptpressure"
+version = "2.5.0"
+description = "LLM Evaluation Suite"
+authors = [
+  { name = "Joeseph Grey", email = "joeseph@example.com" },
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "sqlalchemy[asyncio]",
+    "aiosqlite",
+    "pydantic",
+    "pydantic-settings",
+    "httpx",
+    "jinja2",
+    "python-dotenv",
+    "prometheus-client",
+    "sse-starlette",
+    "pandas",
+    "pyyaml",
+    "requests",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["promptpressure*"]
