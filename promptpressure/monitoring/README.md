@@ -46,7 +46,7 @@ This directory contains the configuration files needed to set up monitoring for 
 6. In Grafana:
    - Navigate to Configuration > Data Sources
    - Add Prometheus as a data source with URL: <http://prometheus:9090>
-   - Import the dashboard using the grafana_dashboard.json file from the project root
+   - Import the dashboard using the configs/grafana_dashboard.json file from the project root
 
 ## Configuration Files
 
