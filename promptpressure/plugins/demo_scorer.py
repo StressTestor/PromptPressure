@@ -1,4 +1,4 @@
-from plugins.core import ScorerPlugin
+from .core import ScorerPlugin
 from typing import Dict, Any
 
 class LengthScorer(ScorerPlugin):

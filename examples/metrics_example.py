@@ -50,7 +50,7 @@ def create_example_config():
 
 def register_custom_metrics():
     """Register custom metrics functions."""
-    from metrics import get_metrics_analyzer
+    from promptpressure.metrics import get_metrics_analyzer
     
     analyzer = get_metrics_analyzer()
     analyzer.register_metric_function("sentiment_score", sentiment_score_metric)
