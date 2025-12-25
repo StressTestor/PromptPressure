@@ -1,0 +1,9 @@
+outputs/
+__pycache__/
+*.pyc
+*.log
+.pytest_cache/
+promptpressure.db
+.DS_Store
+venv/
+.env
