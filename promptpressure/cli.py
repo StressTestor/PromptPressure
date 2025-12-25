@@ -355,7 +355,7 @@ async def main_async():
     start_metrics_server()
     
     parser = argparse.ArgumentParser(description="Run PromptPressure Eval Suite (Async v1.7)")
-    parser.add_argument("--multi-config", help="YAML config file(s)")
+    parser.add_argument("--multi-config", nargs='+', help="YAML config file(s)")
     parser.add_argument("--post-analyze", choices=["groq", "openrouter"], help="Optional post-analysis adapter")
     parser.add_argument("--schema", action="store_true", help="Dump JSON Schema for configuration and exit")
     

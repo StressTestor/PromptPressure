@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     is_simulation: bool = Field(False, description="Whether to run in simulation mode")
     dataset: str = Field(..., description="Path to the evaluation dataset")
     output: str = Field(..., description="Output filename for evaluation results")
+    output_dir: str = Field("outputs", description="Directory for output files")
     temperature: float = Field(0.7, ge=0.0, le=2.0, description="Sampling temperature")
     
     # Performance settings
