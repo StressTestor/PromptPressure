@@ -498,6 +498,77 @@ async def get_diagnostics():
     return {"status": "ok", "checks": checks}
 
 
+# =============================================================================
+# Ollama Model Management (v2.6 Desktop)
+# =============================================================================
+
+@app.get("/api/health")
+async def api_health():
+    """Health check endpoint for desktop sidecar."""
+    return {"status": "ok", "version": "2.6.0", "mode": "desktop"}
+
+
+@app.get("/ollama/health")
+async def ollama_health():
+    """Check if Ollama is running."""
+    from promptpressure.adapters import ollama_adapter
+    is_healthy = await ollama_adapter.check_health()
+    return {"status": "ok" if is_healthy else "unavailable", "ollama": is_healthy}
+
+
+@app.get("/ollama/models")
+async def list_ollama_models():
+    """List available Ollama models."""
+    from promptpressure.adapters import ollama_adapter
+    try:
+        models = await ollama_adapter.list_models()
+        return {"models": models}
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Ollama unavailable: {str(e)}")
+
+
+class OllamaModelRequest(BaseModel):
+    name: str
+
+
+@app.post("/ollama/models/pull")
+async def pull_ollama_model(request: OllamaModelRequest, background_tasks: BackgroundTasks):
+    """Pull a model from Ollama registry (background task)."""
+    from promptpressure.adapters import ollama_adapter
+    
+    async def do_pull():
+        try:
+            await ollama_adapter.pull_model(request.name)
+        except Exception as e:
+            logging.error(f"Failed to pull model {request.name}: {e}")
+    
+    background_tasks.add_task(do_pull)
+    return {"status": "pulling", "model": request.name}
+
+
+@app.delete("/ollama/models/{model_name}")
+async def delete_ollama_model(model_name: str):
+    """Delete a model from Ollama."""
+    from promptpressure.adapters import ollama_adapter
+    try:
+        await ollama_adapter.delete_model(model_name)
+        return {"status": "deleted", "model": model_name}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="PromptPressure API Server")
+    parser.add_argument("--desktop", action="store_true", help="Run in desktop sidecar mode")
+    parser.add_argument("--port", type=int, default=8000, help="Port to run on")
+    args = parser.parse_args()
+    
+    if args.desktop:
+        # Desktop mode: bind only to localhost for security
+        uvicorn.run(app, host="127.0.0.1", port=9876, log_level="info")
+    else:
+        uvicorn.run(app, host="0.0.0.0", port=args.port)
+
