@@ -1,191 +1,205 @@
 # PromptPressure
 
-PromptPressure is an evaluation suite for Large Language Models (LLMs) designed to test their responses under various pressure scenarios. The framework allows you to evaluate different models using customizable prompts and adapters for various API providers.
+**Stress-test your LLMs before they stress-test you.**
 
-## Features
+PromptPressure is an evaluation framework that puts language models through their paces. You give it prompts, it gives you data. No hand-waving about "alignment"—just cold metrics on how models actually behave under pressure.
 
-- Multi-model evaluation support
-- Adapters for OpenRouter, Groq, LM Studio (optional), and mock providers
-- Configurable evaluation scenarios
-- Post-analysis scoring with customizable rubrics
-- Secure handling of API keys via environment variables
-- Comprehensive error logging and reporting
-- **New in v1.6**: Automated HTML/Markdown reports
-- **New in v1.6**: Concurrent prompt execution
-- **New in v2.3**: Team Collaboration & Data Export
-- **New in v2.4**: Enterprise Audit Logs & SSO Support
-- **New in v2.5**: System Diagnostics & Onboarding Tour
+Built because I got tired of trusting vibes over verification.
 
-## Installation
+---
 
-1. Clone the repository
-1. Install the required dependencies:
+## The Pitch (30 seconds)
+
+Most people eyeball LLM outputs and call it QA. That's not evaluation—that's hope.
+
+PromptPressure runs structured scenarios across multiple models simultaneously, scores responses with configurable rubrics, and spits out reports you can actually use. You get:
+
+- **Multi-model head-to-head**: Test OpenRouter, Groq, Ollama, LM Studio, whatever. Same prompts, different brains.
+- **Automated scoring**: Post-analysis with another LLM grades the responses. No manual review grinding.
+- **Desktop app**: Native macOS with bundled Python backend. No server to babysit.
+- **Offline mode**: Ollama integration for when you don't want your queries leaving the building.
+
+It's an evaluation suite that respects your time and doesn't require a DevOps team.
+
+---
+
+## Quick Start
 
 ```bash
+# Clone it
+git clone https://github.com/StressTestor/PromptPressure.git
+cd PromptPressure
+
+# Install deps
 pip install -r requirements.txt
-```
 
-## Setup
-
-1. Copy the `.env.example` file to `.env`:
-
-```bash
+# Set your keys
 cp .env.example .env
+# Edit .env with your API keys (GROQ_API_KEY, OPENROUTER_API_KEY, etc.)
+
+# Run an eval
+python -m promptpressure.cli --multi-config configs/config_openrouter_gpt_oss_20b_free.yaml
 ```
 
-1. Edit the `.env` file and add your API keys:
+That's it. Output lands in `outputs/<timestamp>/` with CSVs, metrics, and human-readable reports.
 
-```env
-# GroqCloud
-GROQ_API_KEY=your_groq_api_key_here
-
-# OpenRouter
-OPENROUTER_API_KEY=your_openrouter_api_key_here
-```
-
-## Usage
-
-Run evaluations with one or more configuration files (cloud-first quickstart):
-
-```bash
-# Run via wrapper script
-python run_eval.py --multi-config configs/config_openrouter_gpt_oss_20b_free.yaml configs/config.yaml
-
-# OR run via module (preferred)
-python -m promptpressure.cli --multi-config configs/config_openrouter_gpt_oss_20b_free.yaml configs/config.yaml
-```
-
-Or use the one-click batch script for cloud runs (OpenRouter evals + OpenRouter post-analysis + metrics):
-
-```powershell
-./run_promptpressure_cloud.bat
-```
-
-Notes:
-
-- Configuration files are now located in the `configs/` directory.
-- `configs/config_openrouter_gpt_oss_20b_free.yaml` uses OpenRouter (broad model access).
-- `config.yaml` uses Groq (e.g., llama3-70b-8192).
-- You can mix and match any cloud configs; LM Studio is fully supported but optional (see below).
-
-For detailed configuration options, see the [Configuration Guide](docs/CONFIGURATION.md).
-
-### Configuration Files
-
-Create YAML configuration files for each model you want to evaluate.
-
-Cloud example (OpenRouter):
-
-```yaml
-adapter: openrouter
-model: openai/gpt-oss-20b:free
-model_name: openai/gpt-oss-20b:free
-dataset: evals_dataset.json
-output: eval_scores_output_openrouter_gpt_oss_20b_free.csv
-output_dir: outputs
-openrouter_endpoint: https://openrouter.ai/api/v1/chat/completions
-temperature: 0.7
-use_timestamp_output_dir: true
-# Performance
-max_workers: 5
-```
-
-Optional: Local models (LM Studio)
-
-```yaml
-adapter: lmstudio
-model: qwen/qwen3-8b
-model_name: qwen/qwen3-8b
-is_simulation: false
-dataset: evals_dataset.json
-output: eval_scores_output_qwen3_8b.csv
-output_dir: outputs
-lmstudio_endpoint: http://127.0.0.1:1234/v1/chat/completions
-temperature: 0.7
-use_timestamp_output_dir: true
-```
-
-## Security
-
-API keys are securely managed through environment variables and are never hardcoded in configuration files. The `.env` file is automatically excluded from version control via `.gitignore`.
+---
 
 ## Adapters
 
-The framework supports multiple adapters:
+Plug in whatever inference source you've got lying around:
 
-- **OpenRouter**: Cloud; access to 100+ models (recommended quickstart)
-- **Groq**: Cloud
-- **LM Studio (optional)**: Local models
-- **Mock**: For testing purposes
+| Adapter | Type | Notes |
+|---------|------|-------|
+| **OpenRouter** | Cloud | 100+ models, one API. Default for broad coverage. |
+| **Groq** | Cloud | Fast inference, limited model selection. |
+| **Ollama** | Local | Self-hosted. Your data stays on your machine. |
+| **LM Studio** | Local | GUI for local models, works if you've got the VRAM. |
+| **Mock** | Test | Fake responses for integration testing. |
+
+Switch adapters by changing one line in your YAML. The framework handles the rest.
+
+---
+
+## Desktop App (v2.6)
+
+Because running Python from Terminal is fine until it isn't.
+
+The Tauri-based desktop app bundles everything:
+- Next.js dashboard (dark mode, because we live in dark mode)
+- Python backend (PyInstaller sidecar, 22MB)
+- Local model management (Ollama integration)
+
+**Build it yourself:**
+```bash
+cd desktop
+npm install
+npm run tauri build
+```
+
+Outputs a `.app` and `.dmg` in `src-tauri/target/release/bundle/`. Self-contained. No brew install, no pip install, no prayers.
+
+---
+
+## Configuration
+
+YAML configs live in `configs/`. Here's the anatomy:
+
+```yaml
+adapter: openrouter                    # Which inference source
+model: openai/gpt-oss-20b:free         # Model identifier
+dataset: evals_dataset.json            # Your test prompts
+output_dir: outputs                    # Where results land
+temperature: 0.7                       # Creativity dial
+max_workers: 5                         # Parallel threads (1-10)
+use_timestamp_output_dir: true         # Organize by run time
+```
+
+Run multiple configs in one go:
+```bash
+python -m promptpressure.cli --multi-config configs/config_a.yaml configs/config_b.yaml
+```
+
+Results from each config land in the same timestamped folder. Compare at will.
+
+---
 
 ## Post-Analysis
 
-After running evaluations, the framework can perform post-analysis using OpenRouter (default) or Groq to score responses:
+After evals run, PromptPressure can score responses automatically:
 
-- Default when running multiple configs: OpenRouter scoring (model: `openai/gpt-oss-20b:free`).
-- Override with CLI flags:
-  - `--post-analyze openrouter` for OpenRouter scoring
-  - `--post-analyze groq` for Groq scoring
-  
-You can also override the scoring model by setting `scoring_model_name` in the last config passed to `--multi-config`.
-
-## Automated Reports
-
-PromptPressure now generates human-readable reports (HTML and Markdown) automatically after each run.
-
-- **HTML Report**: `outputs/<timestamp>/report.html`
-- **Markdown Report**: `outputs/<timestamp>/report.md`
-
-You can customize the templates by pointing `report_template_dir` in your config to a directory containing `report_default.html` and `report_default.md`.
-
-## Performance
-
-To speed up evaluations, you can enable concurrent execution by setting `max_workers` in your configuration:
-
-```yaml
-max_workers: 5  # Recommended: 1-10
+```bash
+python -m promptpressure.cli --multi-config configs/config.yaml --post-analyze openrouter
 ```
 
-This uses a thread pool to process prompts in parallel.
+A scoring model reads the responses and grades them against your rubric. You get numbers instead of feelings.
 
-## Metrics Collection
+**Override the scorer:**
+```yaml
+scoring_model_name: anthropic/claude-3-haiku  # Or whatever you trust
+```
 
-PromptPressure now includes an enhanced metrics collection system that automatically tracks:
+---
 
-- Response times
-- Error rates
-- Custom metrics (response length, word count, etc.)
-- Aggregated performance statistics
+## Metrics
 
-Metrics are automatically collected during evaluation runs and saved to `metrics.json` in each output directory. When running multiple configurations, an aggregated metrics report is also generated.
-
-### Configuration
-
-To enable metrics collection, add the following to your configuration file:
+Every run captures:
+- Response latency (p50, p90, p99)
+- Error rates per model
+- Token counts
+- Custom metrics you define
 
 ```yaml
-# Enable/disable metrics collection (default: true)
 collect_metrics: true
-
-# Custom metrics to collect (default: empty)
 custom_metrics:
   - "response_length"
   - "word_count"
 ```
 
-### Custom Metrics
-
-You can register custom metrics functions in your evaluation code:
+Register your own scorers:
 ```python
 from promptpressure.metrics import get_metrics_analyzer
 
-# Register a custom metric function
 analyzer = get_metrics_analyzer()
-analyzer.register_metric_function("sentiment_score", your_sentiment_function)
+analyzer.register_metric_function("toxicity", your_toxicity_scorer)
 ```
 
-Custom metrics are automatically calculated and included in the metrics report.
+All metrics dump to `metrics.json` per run. Aggregate across runs for trends.
+
+---
+
+## Reports
+
+Auto-generated after each eval:
+- `report.html` — Formatted, shareable
+- `report.md` — Grep-friendly
+
+Customize templates by pointing `report_template_dir` to your own.
+
+---
+
+## Security
+
+- API keys live in `.env` (gitignored by default)
+- Desktop mode binds to `127.0.0.1` only
+- Ollama/local adapters keep everything on-box
+- Audit logs track who ran what (v2.4+)
+
+No telemetry. Your evals are your business.
+
+---
+
+## Roadmap
+
+Active development. Current priorities:
+
+- [x] Multi-adapter support (OpenRouter, Groq, Ollama, LM Studio)
+- [x] Automated post-analysis scoring
+- [x] Desktop app with bundled backend
+- [x] Dark mode UI (black/grey theme)
+- [ ] Local model manager UI
+- [ ] Windows/Linux builds
+- [ ] Plugin marketplace
+
+See [roadmap.md](roadmap.md) for the full picture.
+
+---
+
+## Contributing
+
+PRs welcome. Keep these in mind:
+1. Tests pass (`pytest tests/`)
+2. No new dependencies without a good reason
+3. Document what you change
+
+File issues for bugs. Feature requests go in Discussions.
+
+---
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT. Do what you want. See [LICENSE](LICENSE).
+
+---
+
+*Built by someone who got tired of asking "but does it actually work?" and decided to find out systematically.*
