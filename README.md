@@ -2,132 +2,111 @@
 
 **Stress-test your LLMs before they stress-test you.**
 
-PromptPressure is an evaluation framework that puts language models through their paces. You give it prompts, it gives you data. No hand-waving about "alignment"—just cold metrics on how models actually behave under pressure.
-
-Built because I got tired of trusting vibes over verification.
+An evaluation framework that puts language models through structured scenarios and gives you data on how they actually behave. Prompts in, metrics out.
 
 ---
 
-## The Pitch (30 seconds)
+## What It Does
 
-Most people eyeball LLM outputs and call it QA. That's not evaluation—that's hope.
-
-PromptPressure runs structured scenarios across multiple models simultaneously, scores responses with configurable rubrics, and spits out reports you can actually use. You get:
-
-- **Multi-model head-to-head**: Test OpenRouter, Groq, Ollama, LM Studio, whatever. Same prompts, different brains.
-- **Automated scoring**: Post-analysis with another LLM grades the responses. No manual review grinding.
-- **Desktop app**: Native macOS with bundled Python backend. No server to babysit.
-- **Offline mode**: Ollama integration for when you don't want your queries leaving the building.
-
-It's an evaluation suite that respects your time and doesn't require a DevOps team.
+- **Multi-model evaluation**: Run the same prompts against OpenRouter, Groq, Ollama, LM Studio simultaneously
+- **Automated scoring**: Post-analysis with configurable rubrics grades responses without manual review
+- **Desktop app**: Native macOS with bundled Python backend (no server management)
+- **Offline mode**: Ollama integration for air-gapped or privacy-conscious environments
+- **Reports**: Auto-generated HTML and Markdown after each run
 
 ---
 
 ## Quick Start
 
 ```bash
-# Clone it
 git clone https://github.com/StressTestor/PromptPressure.git
 cd PromptPressure
-
-# Install deps
 pip install -r requirements.txt
 
-# Set your keys
 cp .env.example .env
-# Edit .env with your API keys (GROQ_API_KEY, OPENROUTER_API_KEY, etc.)
+# Add your API keys: GROQ_API_KEY, OPENROUTER_API_KEY
 
-# Run an eval
 python -m promptpressure.cli --multi-config configs/config_openrouter_gpt_oss_20b_free.yaml
 ```
 
-That's it. Output lands in `outputs/<timestamp>/` with CSVs, metrics, and human-readable reports.
+Results land in `outputs/<timestamp>/` with CSVs, metrics, and reports.
 
 ---
 
 ## Adapters
 
-Plug in whatever inference source you've got lying around:
+| Adapter | Type | Description |
+|---------|------|-------------|
+| **OpenRouter** | Cloud | 100+ models via single API |
+| **Groq** | Cloud | Fast inference |
+| **Ollama** | Local | Self-hosted, data stays on-machine |
+| **LM Studio** | Local | GUI-based local inference |
+| **Mock** | Test | Synthetic responses for CI |
 
-| Adapter | Type | Notes |
-|---------|------|-------|
-| **OpenRouter** | Cloud | 100+ models, one API. Default for broad coverage. |
-| **Groq** | Cloud | Fast inference, limited model selection. |
-| **Ollama** | Local | Self-hosted. Your data stays on your machine. |
-| **LM Studio** | Local | GUI for local models, works if you've got the VRAM. |
-| **Mock** | Test | Fake responses for integration testing. |
-
-Switch adapters by changing one line in your YAML. The framework handles the rest.
+Switch adapters with one line in your config YAML.
 
 ---
 
 ## Desktop App (v2.6)
 
-Because running Python from Terminal is fine until it isn't.
-
-The Tauri-based desktop app bundles everything:
-- Next.js dashboard (dark mode, because we live in dark mode)
+Tauri-based native app bundles everything:
+- Next.js dashboard with dark theme
 - Python backend (PyInstaller sidecar, 22MB)
-- Local model management (Ollama integration)
+- Local model management via Ollama
 
-**Build it yourself:**
 ```bash
 cd desktop
 npm install
 npm run tauri build
 ```
 
-Outputs a `.app` and `.dmg` in `src-tauri/target/release/bundle/`. Self-contained. No brew install, no pip install, no prayers.
+Self-contained `.app` and `.dmg` output. No external dependencies.
 
 ---
 
 ## Configuration
 
-YAML configs live in `configs/`. Here's the anatomy:
+Configs live in `configs/`:
 
 ```yaml
-adapter: openrouter                    # Which inference source
-model: openai/gpt-oss-20b:free         # Model identifier
-dataset: evals_dataset.json            # Your test prompts
-output_dir: outputs                    # Where results land
-temperature: 0.7                       # Creativity dial
-max_workers: 5                         # Parallel threads (1-10)
-use_timestamp_output_dir: true         # Organize by run time
+adapter: openrouter
+model: openai/gpt-oss-20b:free
+dataset: evals_dataset.json
+output_dir: outputs
+temperature: 0.7
+max_workers: 5
+use_timestamp_output_dir: true
 ```
 
-Run multiple configs in one go:
+Run multiple configs:
 ```bash
-python -m promptpressure.cli --multi-config configs/config_a.yaml configs/config_b.yaml
+python -m promptpressure.cli --multi-config configs/a.yaml configs/b.yaml
 ```
-
-Results from each config land in the same timestamped folder. Compare at will.
 
 ---
 
 ## Post-Analysis
 
-After evals run, PromptPressure can score responses automatically:
+Score responses automatically after evaluation:
 
 ```bash
 python -m promptpressure.cli --multi-config configs/config.yaml --post-analyze openrouter
 ```
 
-A scoring model reads the responses and grades them against your rubric. You get numbers instead of feelings.
-
-**Override the scorer:**
+Override the scoring model:
 ```yaml
-scoring_model_name: anthropic/claude-3-haiku  # Or whatever you trust
+scoring_model_name: anthropic/claude-3-haiku
 ```
 
 ---
 
 ## Metrics
 
-Every run captures:
+Captured per run:
 - Response latency (p50, p90, p99)
 - Error rates per model
 - Token counts
-- Custom metrics you define
+- Custom metrics
 
 ```yaml
 collect_metrics: true
@@ -136,70 +115,49 @@ custom_metrics:
   - "word_count"
 ```
 
-Register your own scorers:
+Register custom scorers:
 ```python
 from promptpressure.metrics import get_metrics_analyzer
-
 analyzer = get_metrics_analyzer()
-analyzer.register_metric_function("toxicity", your_toxicity_scorer)
+analyzer.register_metric_function("toxicity", your_scorer)
 ```
-
-All metrics dump to `metrics.json` per run. Aggregate across runs for trends.
-
----
-
-## Reports
-
-Auto-generated after each eval:
-- `report.html` — Formatted, shareable
-- `report.md` — Grep-friendly
-
-Customize templates by pointing `report_template_dir` to your own.
 
 ---
 
 ## Security
 
-- API keys live in `.env` (gitignored by default)
+- API keys in `.env` (gitignored)
 - Desktop mode binds to `127.0.0.1` only
-- Ollama/local adapters keep everything on-box
-- Audit logs track who ran what (v2.4+)
-
-No telemetry. Your evals are your business.
+- Ollama keeps everything local
+- Audit logs (v2.4+)
+- No telemetry
 
 ---
 
 ## Roadmap
 
-Active development. Current priorities:
-
-- [x] Multi-adapter support (OpenRouter, Groq, Ollama, LM Studio)
-- [x] Automated post-analysis scoring
+- [x] Multi-adapter support
+- [x] Automated post-analysis
 - [x] Desktop app with bundled backend
-- [x] Dark mode UI (black/grey theme)
+- [x] Dark mode UI
 - [ ] Local model manager UI
 - [ ] Windows/Linux builds
 - [ ] Plugin marketplace
 
-See [roadmap.md](roadmap.md) for the full picture.
+Full roadmap: [roadmap.md](roadmap.md)
 
 ---
 
 ## Contributing
 
-PRs welcome. Keep these in mind:
-1. Tests pass (`pytest tests/`)
-2. No new dependencies without a good reason
-3. Document what you change
+1. Tests pass: `pytest tests/`
+2. No unnecessary dependencies
+3. Document changes
 
-File issues for bugs. Feature requests go in Discussions.
+Bugs → Issues. Features → Discussions.
 
 ---
 
 ## License
 
-MIT. Do what you want. See [LICENSE](LICENSE).
-
----
-
-*Built by someone who got tired of asking "but does it actually work?" and decided to find out systematically.*
+MIT. See [LICENSE](LICENSE).
