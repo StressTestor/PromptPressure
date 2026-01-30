@@ -45,6 +45,38 @@ Results land in `outputs/<timestamp>/` with CSVs, metrics, and reports.
 
 Switch adapters with one line in your config YAML.
 
+### Custom Adapters
+
+Add support for any LLM API by creating an adapter class:
+
+```python
+# promptpressure/adapters/your_adapter.py
+class YourAdapter:
+    def __init__(self, config: dict):
+        self.endpoint = config.get("your_endpoint", "https://api.example.com/v1/chat")
+        self.api_key = os.getenv("YOUR_API_KEY")
+    
+    def generate(self, prompt: str, system_prompt: str = None) -> str:
+        # Make API call, return response text
+        response = httpx.post(self.endpoint, json={...}, headers={...})
+        return response.json()["choices"][0]["message"]["content"]
+```
+
+Register it in `promptpressure/adapters/__init__.py`:
+```python
+from .your_adapter import YourAdapter
+ADAPTERS["youradapter"] = YourAdapter
+```
+
+Use in config:
+```yaml
+adapter: youradapter
+model: your-model-id
+your_endpoint: https://api.example.com/v1/chat
+```
+
+The config dict passes through to `__init__`, so define any custom keys you need.
+
 ---
 
 ## Desktop App (v2.6)
