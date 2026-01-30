@@ -97,6 +97,7 @@
 - ✅ **Native Desktop App**: Tauri 2.0 wrapper for macOS (`.app`/`.dmg` built).
 - ✅ **Bundled Runtime**: PyInstaller sidecar (Python backend bundled, no pip install needed).
 - ✅ **Next.js Frontend Integration**: Full dashboard bundled as static export.
+- ✅ **Dark Mode UI**: Black/grey theme with working buttons and gradient accents.
 - 🔄 **Offline-First Mode**: Ollama adapter created, local model runner integration in progress.
 - [ ] **Local Model Manager**: UI to download/manage local LLM weights directly.
 - [ ] **Windows/Linux Builds**: Cross-platform packaging pending.
