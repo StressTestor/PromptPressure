@@ -1,0 +1,3 @@
+([('promptpressure-sidecar',
+   '/Users/joesephgrey/projects/PromptPressure/desktop/dist/promptpressure-sidecar',
+   'EXECUTABLE')],)

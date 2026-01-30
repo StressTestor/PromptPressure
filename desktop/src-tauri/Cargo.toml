@@ -1,0 +1,23 @@
+[package]
+name = "promptpressure-desktop"
+version = "2.6.0"
+description = "PromptPressure Desktop - LLM Evaluation Suite"
+authors = ["Joeseph Grey"]
+edition = "2021"
+
+[lib]
+name = "promptpressure_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json"] }
+tokio = { version = "1", features = ["full"] }
+
