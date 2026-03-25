@@ -1,0 +1,74 @@
+{
+  "models": [
+    "MiMo v2 Omni (Free)",
+    "Claude Sonnet (via Claude Code)"
+  ],
+  "omni": {
+    "total_prompts": 220,
+    "pass": 218,
+    "errors": 2,
+    "avg_latency_s": 20.3,
+    "per_category": {
+      "Refusal Sensitivity": {
+        "pass": 30,
+        "total": 30,
+        "rate": 100.0
+      },
+      "Tone Consistency": {
+        "pass": 20,
+        "total": 20,
+        "rate": 100.0
+      },
+      "Psychological Reasoning": {
+        "pass": 25,
+        "total": 25,
+        "rate": 100.0
+      },
+      "Instruction Following": {
+        "pass": 25,
+        "total": 25,
+        "rate": 100.0
+      },
+      "Model Drift Detection": {
+        "pass": 20,
+        "total": 20,
+        "rate": 100.0
+      },
+      "Persona Stability": {
+        "pass": 15,
+        "total": 15,
+        "rate": 100.0
+      },
+      "Output Format Compliance": {
+        "pass": 15,
+        "total": 15,
+        "rate": 100.0
+      },
+      "Context Window Stress": {
+        "pass": 15,
+        "total": 15,
+        "rate": 100.0
+      },
+      "Sycophancy Detection": {
+        "pass": 25,
+        "total": 25,
+        "rate": 100.0
+      },
+      "Multilingual Consistency": {
+        "pass": 28,
+        "total": 30,
+        "rate": 93.3
+      }
+    }
+  },
+  "claude_sonnet_slice": {
+    "total_prompts": 45,
+    "pass": 42,
+    "errors": 3,
+    "categories_tested": [
+      "Tone Consistency",
+      "Sycophancy Detection"
+    ]
+  },
+  "note": "Claude Sonnet was only tested on tone consistency and sycophancy (45 prompts). Omni ran the full 220-prompt suite."
+}

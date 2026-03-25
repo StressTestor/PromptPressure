@@ -1,0 +1,10 @@
+adapter: opencode
+model: opencode/mimo-v2-pro-free
+model_name: MiMo v2 Pro (Free)
+dataset: evals_dataset.json
+output: results.csv
+output_dir: outputs_mimo_pro
+temperature: 0.7
+max_workers: 1
+timeout: 120
+collect_metrics: true

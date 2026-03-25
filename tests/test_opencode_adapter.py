@@ -5,11 +5,15 @@ from unittest.mock import patch, AsyncMock
 
 @pytest.mark.asyncio
 async def test_single_turn():
-    """Single-turn prompt sends opencode -p with correct args."""
+    """Single-turn prompt sends opencode run with correct args and parses JSON events."""
     from promptpressure.adapters.opencode_adapter import generate_response
 
+    json_output = (
+        '{"type":"text","timestamp":1,"sessionID":"s1","part":{"type":"text","text":"Hello from OpenCode"}}\n'
+        '{"type":"step_finish","timestamp":2,"sessionID":"s1","part":{"type":"step-finish"}}\n'
+    )
     mock_proc = AsyncMock()
-    mock_proc.communicate.return_value = (b"Hello from OpenCode", b"")
+    mock_proc.communicate.return_value = (json_output.encode(), b"")
     mock_proc.returncode = 0
 
     with patch("shutil.which", return_value="/usr/bin/opencode"), \
@@ -19,18 +23,37 @@ async def test_single_turn():
     assert result == "Hello from OpenCode"
     args = mock_exec.call_args[0]
     assert args[0] == "opencode"
-    assert "-p" in args
+    assert args[1] == "run"
     assert "Say hello" in args
-    assert "-q" in args
+    assert "--format" in args
+    assert "json" in args
 
 
 @pytest.mark.asyncio
-async def test_multi_turn_concatenation():
-    """Multi-turn should concatenate conversation history into a single prompt."""
+async def test_model_flag():
+    """Model name should be passed via -m."""
     from promptpressure.adapters.opencode_adapter import generate_response
 
     mock_proc = AsyncMock()
-    mock_proc.communicate.return_value = (b"Combined response", b"")
+    mock_proc.communicate.return_value = (b"response", b"")
+    mock_proc.returncode = 0
+
+    with patch("shutil.which", return_value="/usr/bin/opencode"), \
+         patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec:
+        await generate_response("test", model_name="opencode/mimo-v2-omni-free", config={})
+
+    args = mock_exec.call_args[0]
+    assert "-m" in args
+    assert "opencode/mimo-v2-omni-free" in args
+
+
+@pytest.mark.asyncio
+async def test_multi_turn_continuation():
+    """Subsequent turns should use --continue."""
+    from promptpressure.adapters.opencode_adapter import generate_response
+
+    mock_proc = AsyncMock()
+    mock_proc.communicate.return_value = (b"Continued response", b"")
     mock_proc.returncode = 0
 
     messages = [
@@ -43,13 +66,10 @@ async def test_multi_turn_concatenation():
          patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec:
         result = await generate_response("Turn 2", config={}, messages=messages)
 
-    assert result == "Combined response"
+    assert result == "Continued response"
     args = mock_exec.call_args[0]
-    # The prompt arg should contain concatenated history
-    prompt_arg = args[args.index("-p") + 1]
-    assert "USER: Turn 1" in prompt_arg
-    assert "ASSISTANT: Response 1" in prompt_arg
-    assert "USER: Turn 2" in prompt_arg
+    assert "--continue" in args
+    assert "Turn 2" in args
 
 
 @pytest.mark.asyncio
