@@ -72,6 +72,8 @@ PromptPressure is not trying to replace accuracy benchmarks. it tests the behavi
 
 | adapter | type | what you need |
 |---------|------|---------------|
+| **Claude Code** | CLI | claude CLI installed (subscription) |
+| **OpenCode Zen** | CLI | opencode CLI installed (subscription) |
 | OpenRouter | cloud | `OPENROUTER_API_KEY` |
 | Groq | cloud | `GROQ_API_KEY` |
 | OpenAI | cloud | `OPENAI_API_KEY` |
@@ -113,6 +115,33 @@ from .your_adapter import generate_response as your_generate_response
 if name_lower == "your_adapter":
     return lambda text, config: your_generate_response(text, config.get("model_name"), config)
 ```
+
+### zero-cost adapters
+
+Claude Code and OpenCode run through their respective CLI tools. no API keys, no per-token costs. if you have a subscription, the eval runs are free.
+
+**Claude Code** — uses `claude -p` in non-interactive mode. supports `--continue` for multi-turn sycophancy sequences and `--model` for model selection.
+
+```bash
+promptpressure --multi-config configs/config_claude_code.yaml
+```
+
+```yaml
+adapter: claude-code
+model: sonnet
+```
+
+**OpenCode Zen** — uses `opencode -p` in quiet mode. auto-selects the best model via Zen for each prompt.
+
+```bash
+promptpressure --multi-config configs/config_opencode_zen.yaml
+```
+
+```yaml
+adapter: opencode-zen
+```
+
+both adapters check if the CLI tool is installed before running and give a clear error with install instructions if not found.
 
 ---
 
