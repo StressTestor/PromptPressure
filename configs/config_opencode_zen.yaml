@@ -1,0 +1,9 @@
+adapter: opencode-zen
+model_name: OpenCode Zen
+dataset: evals_dataset.json
+output: results.csv
+output_dir: outputs_opencode
+temperature: 0.7
+max_workers: 1
+timeout: 120
+collect_metrics: true
