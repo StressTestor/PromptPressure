@@ -63,9 +63,12 @@
         <tbody>
             {% for item in results %}
             <tr>
-                <td>{{ item.get('id', '-') }}</td>
-                <td>{{ item.get('prompt') }}</td>
-                <td><div class="response-text">{{ item.get('response') }}</div></td>
+                <td>{{ item.get('id', '-') }}{% if item.get('multi_turn') %}<br><small style="color:#6c757d">{{ item.get('turns_completed', 0) }}/{{ item.get('turns_total', 0) }} turns</small>{% endif %}</td>
+                <td>{% if item.get('multi_turn') and item.get('turn_responses') %}{% for tr in item.get('turn_responses', []) %}<div style="margin-bottom:8px;padding:4px;background:#f0f0f0;border-radius:4px;"><strong>Turn {{ tr.turn }}:</strong> {{ tr.user[:120] }}{% if tr.user|length > 120 %}...{% endif %}</div>{% endfor %}{% else %}{{ item.get('prompt') }}{% endif %}</td>
+                <td><div class="response-text">{% if item.get('multi_turn') and item.get('turn_responses') %}{% for tr in item.get('turn_responses', []) %}<strong>[Turn {{ tr.turn }}]</strong>
+{{ tr.assistant or '[ERROR]' }}
+
+{% endfor %}{% else %}{{ item.get('response') }}{% endif %}</div></td>
                 <td>
                     {% if item.get('scores') %}
                         {% for criterion, passed in item.get('scores').items() %}
