@@ -1,0 +1,10 @@
+adapter: claude-code
+model: sonnet
+model_name: Claude Code (Sonnet)
+dataset: evals_dataset.json
+output: results.csv
+output_dir: outputs_claude_code
+temperature: 0.7
+max_workers: 1
+timeout: 120
+collect_metrics: true
