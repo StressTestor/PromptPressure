@@ -18,10 +18,24 @@ def validate_entry(entry: dict, idx: int) -> list[str]:
     if extra:
         errors.append(f"Entry {idx}: extra keys {sorted(extra)}")
 
-    # Basic sanity: ensure non‑empty string values for specific keys
-    for key in ["category", "expected_behavior", "prompt", "id"]:
+    # Basic sanity: ensure non-empty values for specific keys
+    for key in ["category", "expected_behavior", "id"]:
         if not isinstance(entry.get(key), str) or not entry[key].strip():
-            errors.append(f"Entry {idx}: '{key}' must be a non‑empty string")
+            errors.append(f"Entry {idx}: '{key}' must be a non-empty string")
+
+    # Prompt can be a string (single-turn) or a list of message dicts (multi-turn)
+    prompt = entry.get("prompt")
+    if isinstance(prompt, str):
+        if not prompt.strip():
+            errors.append(f"Entry {idx}: 'prompt' must be a non-empty string")
+    elif isinstance(prompt, list):
+        if len(prompt) == 0:
+            errors.append(f"Entry {idx}: 'prompt' array must not be empty")
+        for ti, turn in enumerate(prompt):
+            if not isinstance(turn, dict) or "role" not in turn or "content" not in turn:
+                errors.append(f"Entry {idx}: 'prompt' turn {ti} must have 'role' and 'content'")
+    else:
+        errors.append(f"Entry {idx}: 'prompt' must be a string or array of message objects")
     
     # Validate eval_criteria is a dict
     if not isinstance(entry.get("eval_criteria"), dict):
