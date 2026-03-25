@@ -9,13 +9,14 @@ import httpx
 import asyncio
 from promptpressure.rate_limit import AsyncRateLimiter
 
-async def generate_response(prompt, model_name="gpt-4-1106-preview", config=None):
+async def generate_response(prompt, model_name="gpt-4-1106-preview", config=None, messages=None):
     """
     Generate a response from OpenAI API asynchronously.
     Args:
         prompt (str): User prompt.
         model_name (str): OpenAI model name.
         config (dict): Optional configuration.
+        messages (list): Optional pre-built message history (for multi-turn).
     Returns:
         str: Model-generated response.
     """
@@ -29,7 +30,7 @@ async def generate_response(prompt, model_name="gpt-4-1106-preview", config=None
     }
     data = {
         "model": model_name,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": messages if messages else [{"role": "user", "content": prompt}],
         "temperature": config.get("temperature", 0.7) if config else 0.7
     }
     endpoint = config.get("openai_endpoint", "https://api.openai.com/v1/chat/completions") if config else "https://api.openai.com/v1/chat/completions"

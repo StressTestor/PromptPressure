@@ -10,13 +10,14 @@ import asyncio
 from promptpressure.rate_limit import AsyncRateLimiter
 
 
-async def generate_response(prompt, model_name="openai/gpt-oss-20b:free", config=None):
+async def generate_response(prompt, model_name="openai/gpt-oss-20b:free", config=None, messages=None):
     """
     Generate a response from OpenRouter API asynchronously.
     Args:
         prompt (str): User prompt.
         model_name (str): OpenRouter model name.
         config (dict): Optional configuration.
+        messages (list): Optional pre-built message history (for multi-turn).
     Returns:
         str: Model-generated response.
     """
@@ -32,7 +33,7 @@ async def generate_response(prompt, model_name="openai/gpt-oss-20b:free", config
     }
     data = {
         "model": model_name,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": messages if messages else [{"role": "user", "content": prompt}],
         "temperature": config.get("temperature", 0.7) if config else 0.7
     }
     endpoint = config.get("openrouter_endpoint", "https://openrouter.ai/api/v1/chat/completions") if config else "https://openrouter.ai/api/v1/chat/completions"

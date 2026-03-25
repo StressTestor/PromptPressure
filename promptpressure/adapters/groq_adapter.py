@@ -8,13 +8,14 @@ from promptpressure.rate_limit import AsyncRateLimiter
 dotenv_path = os.path.join(os.path.dirname(__file__), os.pardir, ".env")
 load_dotenv(dotenv_path=dotenv_path)
 
-async def generate_response(prompt, model_name="llama3-70b-8192", config=None):
+async def generate_response(prompt, model_name="llama3-70b-8192", config=None, messages=None):
     """
     Generate a response from Groq LLM asynchronously.
     Args:
         prompt (str): User prompt.
         model_name (str): Groq model name.
         config (dict): Optional configuration.
+        messages (list): Optional pre-built message history (for multi-turn).
     Returns:
         str: Model-generated response.
     """
@@ -29,7 +30,7 @@ async def generate_response(prompt, model_name="llama3-70b-8192", config=None):
     }
     data = {
         "model": model_name,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": messages if messages else [{"role": "user", "content": prompt}],
         "temperature": config.get("temperature", 0.7) if config else 0.7
     }
     endpoint = (config.get("groq_endpoint") if config and "groq_endpoint" in config else None) \

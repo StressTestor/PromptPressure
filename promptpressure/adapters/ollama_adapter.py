@@ -11,15 +11,16 @@ from promptpressure.rate_limit import AsyncRateLimiter
 DEFAULT_OLLAMA_ENDPOINT = "http://localhost:11434"
 
 
-async def generate_response(prompt: str, model_name: str = "llama3.2:1b", config: Optional[dict] = None) -> str:
+async def generate_response(prompt: str, model_name: str = "llama3.2:1b", config: Optional[dict] = None, messages: list = None) -> str:
     """
     Generate a response from a local Ollama model.
-    
+
     Args:
         prompt: User prompt.
         model_name: Ollama model name (e.g., "llama3.2:1b", "mistral:7b").
         config: Optional configuration dict.
-    
+        messages: Optional pre-built message history (for multi-turn).
+
     Returns:
         Model-generated response text.
     """
@@ -28,7 +29,7 @@ async def generate_response(prompt: str, model_name: str = "llama3.2:1b", config
     
     data = {
         "model": model_name,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": messages if messages else [{"role": "user", "content": prompt}],
         "stream": False,
         "options": {
             "temperature": temperature
