@@ -81,7 +81,9 @@ async def generate_response(
         )
 
     if proc.returncode != 0:
-        err = stderr.decode().strip() if stderr else "unknown error"
-        raise RuntimeError(f"Claude Code exited {proc.returncode}: {err}")
+        err = stderr.decode().strip() if stderr else ""
+        out = stdout.decode().strip() if stdout else ""
+        detail = err or out or "unknown error"
+        raise RuntimeError(f"Claude Code exited {proc.returncode}: {detail[:500]}")
 
     return stdout.decode().strip()
