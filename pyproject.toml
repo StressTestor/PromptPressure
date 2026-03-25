@@ -38,6 +38,12 @@ dev = [
     "pytest-asyncio",
 ]
 
+[project.scripts]
+promptpressure = "promptpressure.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["promptpressure*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

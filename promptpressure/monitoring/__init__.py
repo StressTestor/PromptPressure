@@ -24,7 +24,7 @@ ERROR_RESPONSES = Counter('promptpressure_error_responses_total', 'Total number 
 AVERAGE_RESPONSE_TIME = Gauge('promptpressure_average_response_time_seconds', 'Average response time in seconds')
 
 # Server configuration
-METRICS_PORT = 8000
+METRICS_PORT = 9090
 
 
 class MetricsServer:

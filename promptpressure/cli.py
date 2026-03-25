@@ -8,6 +8,7 @@ import traceback
 import time
 import asyncio
 from datetime import datetime
+from uuid import uuid4
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -84,7 +85,7 @@ async def run_evaluation_suite(config, adapter_name):
     # Create DB Evaluation record
     async for session in get_db_session(engine):
         db_eval = Evaluation(
-            id=str(int(time.time())), # Simple ID generation
+            id=str(uuid4()),
             timestamp=datetime.utcnow(),
             config_snapshot=json.loads(json.dumps(config, default=str)),
             status="running"
@@ -248,7 +249,28 @@ async def run_evaluation_suite(config, adapter_name):
 
     record_evaluation_end(time.time() - eval_start_time)
     await engine.dispose()
-    
+
+    # Terminal summary
+    total = len(results)
+    passed = sum(1 for r in results if r.get("success"))
+    failed = sum(1 for r in results if not r.get("success") and not r.get("error"))
+    errors = sum(1 for r in results if r.get("error"))
+    refused = sum(1 for r in results if r.get("success") and r.get("eval_criteria", {}).get("refusal") is True)
+    avg_latency = metrics_collector.metrics.get("average_response_time", 0)
+    elapsed = time.time() - eval_start_time
+
+    print(f"\n{'='*60}")
+    print(f"  PromptPressure eval complete")
+    print(f"{'='*60}")
+    print(f"  prompts:  {total}")
+    print(f"  pass:     {passed - refused}")
+    print(f"  refuse:   {refused}")
+    print(f"  error:    {errors}")
+    print(f"  avg lat:  {avg_latency:.2f}s")
+    print(f"  elapsed:  {elapsed:.1f}s")
+    print(f"  output:   {output_dir}")
+    print(f"{'='*60}\n")
+
     return results, output_dir, metrics_collector
 
 async def post_analyze_groq(results, config, suffix="all_models"):
@@ -358,6 +380,7 @@ async def main_async():
     parser.add_argument("--multi-config", nargs='+', help="YAML config file(s)")
     parser.add_argument("--post-analyze", choices=["groq", "openrouter"], help="Optional post-analysis adapter")
     parser.add_argument("--schema", action="store_true", help="Dump JSON Schema for configuration and exit")
+    parser.add_argument("--ci", action="store_true", help="CI mode: output machine-readable JSON summary, exit 1 on any failure")
     
     # Plugin CLI commands
     subparsers = parser.add_subparsers(dest="command", help="Sub-commands")
@@ -457,6 +480,23 @@ async def main_async():
             print(f"Failed to generate reports: {e}")
 
     stop_metrics_server()
+
+    # CI mode: machine-readable summary + exit code
+    if args.ci and all_results:
+        total = len(all_results)
+        passed = sum(1 for r in all_results if r.get("success"))
+        errors = sum(1 for r in all_results if r.get("error"))
+        ci_summary = {
+            "total": total,
+            "passed": passed,
+            "failed": total - passed,
+            "errors": errors,
+            "success": errors == 0 and passed == total,
+        }
+        print(json.dumps(ci_summary))
+        if not ci_summary["success"]:
+            import sys
+            sys.exit(1)
 
 def main():
     asyncio.run(main_async())

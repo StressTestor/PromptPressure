@@ -22,7 +22,7 @@ class Base(DeclarativeBase):
 class Evaluation(Base):
     __tablename__ = "evaluations"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[str] = mapped_column(String, primary_key=True)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), nullable=True)
     project: Mapped["Project"] = relationship(back_populates="evaluations")
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
