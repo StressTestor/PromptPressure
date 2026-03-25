@@ -42,7 +42,7 @@ def _verify_token(token: str) -> bool:
         if len(parts) != 2:
             return False
         ts, sig = parts
-        expected = hmac.new(API_SECRET.encode(), ts.encode(), hashlib.sha256).hexdigest()
+        expected = hmac.HMAC(API_SECRET.encode(), ts.encode(), hashlib.sha256).hexdigest()
         if not hmac.compare_digest(sig, expected):
             return False
         # Token expires after 24h
