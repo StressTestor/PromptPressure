@@ -1,5 +1,5 @@
 
-from metrics import MetricsCollector
+from promptpressure.metrics import MetricsCollector
 
 def test_metrics_simple_collection():
     collector = MetricsCollector()

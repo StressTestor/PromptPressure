@@ -1,7 +1,7 @@
 
 import os
 import pytest
-from reporting import ReportGenerator
+from promptpressure.reporting import ReportGenerator
 
 @pytest.fixture
 def sample_results():

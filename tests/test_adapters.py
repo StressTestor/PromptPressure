@@ -1,15 +1,16 @@
 
 import pytest
-from adapters import load_adapter
+from promptpressure.adapters import load_adapter
 
 def test_load_mock_adapter():
     adapter = load_adapter("mock")
     assert adapter is not None
     assert callable(adapter)
 
-def test_mock_adapter_response():
+@pytest.mark.asyncio
+async def test_mock_adapter_response():
     adapter = load_adapter("mock")
-    response = adapter("Test prompt", {"is_simulation": True})
+    response = await adapter("Test prompt", {"is_simulation": True})
     assert "[SIMULATED RESPONSE" in response
     assert "PromptPressure Mock Adapter" in response
 

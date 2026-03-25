@@ -2,7 +2,7 @@
 import os
 import pytest
 from pydantic import ValidationError
-from config import Settings
+from promptpressure.config import Settings
 
 def test_settings_validation_basic():
     # Minimal valid config

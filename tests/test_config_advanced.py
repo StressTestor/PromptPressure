@@ -2,7 +2,7 @@ import pytest
 import os
 from pathlib import Path
 from pydantic import ValidationError
-from config import Settings
+from promptpressure.config import Settings
 
 class TestConfigAdvanced:
     def test_missing_template_dir(self):
