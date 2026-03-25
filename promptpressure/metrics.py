@@ -14,10 +14,11 @@ import json
 import os
 from typing import Dict, List, Any, Callable, Optional
 from datetime import datetime
-import threading
+import asyncio
+
 class MetricsCollector:
     """Collects and manages evaluation metrics."""
-    
+
     def __init__(self):
         self.metrics = {
             "total_prompts": 0,
@@ -29,42 +30,39 @@ class MetricsCollector:
             "custom_metrics": {},
             "timestamp": datetime.now().isoformat()
         }
-        self._lock = threading.Lock()
-        
+        self._lock = asyncio.Lock()
+
     def start_timer(self) -> float:
         """Start timing an operation."""
         return time.time()
-        
+
     def end_timer(self, start_time: float) -> float:
         """End timing an operation and return elapsed time."""
         return time.time() - start_time
-        
+
     def record_success(self, response_time: float):
         """Record a successful response."""
-        with self._lock:
-            self.metrics["total_prompts"] += 1
-            self.metrics["successful_responses"] += 1
-            self.metrics["total_response_time"] += response_time
-            self.metrics["average_response_time"] = (
-                self.metrics["total_response_time"] / self.metrics["successful_responses"]
-            )
-        
+        self.metrics["total_prompts"] += 1
+        self.metrics["successful_responses"] += 1
+        self.metrics["total_response_time"] += response_time
+        self.metrics["average_response_time"] = (
+            self.metrics["total_response_time"] / self.metrics["successful_responses"]
+        )
+
     def record_error(self, error: Exception, prompt: str = ""):
         """Record an error during evaluation."""
-        with self._lock:
-            self.metrics["total_prompts"] += 1
-            self.metrics["errors"] += 1
-            self.metrics["error_details"].append({
-                "timestamp": datetime.now().isoformat(),
-                "error_type": type(error).__name__,
-                "error_message": str(error),
-                "prompt": prompt[:100] + "..." if len(prompt) > 100 else prompt
-            })
-        
+        self.metrics["total_prompts"] += 1
+        self.metrics["errors"] += 1
+        self.metrics["error_details"].append({
+            "timestamp": datetime.now().isoformat(),
+            "error_type": type(error).__name__,
+            "error_message": str(error),
+            "prompt": prompt[:100] + "..." if len(prompt) > 100 else prompt
+        })
+
     def add_custom_metric(self, name: str, value: Any):
         """Add a custom metric."""
-        with self._lock:
-            self.metrics["custom_metrics"][name] = value
+        self.metrics["custom_metrics"][name] = value
         
     def get_metrics(self) -> Dict[str, Any]:
         """Get current metrics."""
