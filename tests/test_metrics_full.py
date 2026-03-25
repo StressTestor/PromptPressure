@@ -1,7 +1,7 @@
 
 import json
 import pytest
-from metrics import MetricsCollector, MetricsAnalyzer, get_metrics_analyzer
+from promptpressure.metrics import MetricsCollector, MetricsAnalyzer, get_metrics_analyzer
 
 def custom_word_count_metric(prompt, response, **kwargs):
     return len(response.split())
