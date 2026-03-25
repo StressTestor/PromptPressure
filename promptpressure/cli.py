@@ -398,9 +398,7 @@ async def post_analyze_openrouter(results, config, suffix="all_models"):
         print(f"Error writing analysis: {e}")
 
 async def main_async():
-    start_metrics_server()
-    
-    parser = argparse.ArgumentParser(description="Run PromptPressure Eval Suite (Async v1.7)")
+    parser = argparse.ArgumentParser(description="PromptPressure v3.0 — Behavioral LLM Eval")
     parser.add_argument("--multi-config", nargs='+', help="YAML config file(s)")
     parser.add_argument("--post-analyze", choices=["groq", "openrouter"], help="Optional post-analysis adapter")
     parser.add_argument("--schema", action="store_true", help="Dump JSON Schema for configuration and exit")
@@ -451,6 +449,7 @@ async def main_async():
     if not args.multi_config:
         parser.error("--multi-config is required unless --schema or a subcommand is used")
 
+    start_metrics_server()
 
     all_results = []
     output_dirs = []
@@ -459,7 +458,14 @@ async def main_async():
 
     for cfg_file in args.multi_config:
         from promptpressure.config import get_config
-        config = get_config(cfg_file)
+        try:
+            config = get_config(cfg_file)
+        except Exception as e:
+            # Strip potentially secret-containing details from error
+            err_msg = str(e).split("input_value=")[0] if "input_value=" in str(e) else str(e)
+            print(f"Error loading config '{cfg_file}': {err_msg}")
+            import sys
+            sys.exit(1)
         config_dict = config.model_dump()
         last_config = config_dict
 
