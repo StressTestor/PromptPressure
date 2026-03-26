@@ -61,7 +61,7 @@ class Result(Base):
     evaluation_id: Mapped[int] = mapped_column(ForeignKey("evaluations.id"))
     prompt_id: Mapped[str] = mapped_column(String, nullable=True) # ID from the dataset
     prompt_text: Mapped[str] = mapped_column(Text)
-    response_text: Mapped[str] = mapped_column(Text)
+    response_text: Mapped[str] = mapped_column(Text, nullable=True, default="")
     model: Mapped[str] = mapped_column(String)
     adapter: Mapped[str] = mapped_column(String)
     latency_ms: Mapped[float] = mapped_column(Float)
