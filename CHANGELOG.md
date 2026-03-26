@@ -1,6 +1,6 @@
 # changelog
 
-## 3.0.0 — 2026-03-25
+## 3.0.0 - 2026-03-25
 
 breaking overhaul. if you're upgrading from 2.x, start fresh.
 
@@ -20,7 +20,7 @@ breaking overhaul. if you're upgrading from 2.x, start fresh.
 - `.env.example` with inline docs for all adapter keys
 - terminal summary after eval runs (prompt count, pass/fail/error, avg latency)
 - `--ci` flag for machine-readable JSON summary + exit codes (0 = pass, 1 = fail)
-- CI pipeline (.github/workflows/ci.yml) — pytest on push/PR, Python 3.10+
+- CI pipeline (.github/workflows/ci.yml), pytest on push/PR, Python 3.10+
 - JWT auth on all API endpoints
 - grading prompt injection defense (XML boundary tags + structured output)
 - API key stripping from config snapshots before DB persistence
@@ -30,7 +30,7 @@ breaking overhaul. if you're upgrading from 2.x, start fresh.
 - sample report at examples/sample_report.html
 
 ### removed
-- desktop/ directory (Tauri + PyInstaller — premature scope)
+- desktop/ directory (Tauri + PyInstaller, premature scope)
 - enterprise features from default surface (teams, projects, SSO, audit logs)
 - unused pandas, requests dependencies
 

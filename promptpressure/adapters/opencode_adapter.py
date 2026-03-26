@@ -83,7 +83,7 @@ async def generate_response(
         if model:
             cmd.extend(["-m", model])
 
-    # asyncio.create_subprocess_exec does not use a shell — no injection risk
+    # create_subprocess_exec doesn't use a shell, no injection risk
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,

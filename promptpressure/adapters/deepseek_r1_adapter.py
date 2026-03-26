@@ -37,7 +37,7 @@ async def generate_response(prompt, model_name="deepseek/deepseek-r1", config=No
     if not api_key:
         raise ValueError("Missing OPENROUTER_API_KEY in environment or config.")
 
-    # No tracking headers — no X-Title, no HTTP-Referer
+    # no tracking headers. no X-Title, no HTTP-Referer
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
