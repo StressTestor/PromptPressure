@@ -1,7 +1,7 @@
 """
 Claude Code CLI adapter for PromptPressure.
 
-Uses `claude -p` for non-interactive evaluation. No API key needed —
+Uses `claude -p` for non-interactive evaluation. no API key needed,
 runs on your existing Claude Code subscription.
 
 Single-turn: claude -p "<prompt>"
@@ -62,7 +62,7 @@ async def generate_response(
         if model:
             cmd.extend(["--model", model])
 
-    # asyncio.create_subprocess_exec does not use a shell — no injection risk
+    # create_subprocess_exec doesn't use a shell, no injection risk
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,

@@ -1,8 +1,12 @@
 # PromptPressure
 
+[![CI](https://github.com/StressTestor/PromptPressure/actions/workflows/ci.yml/badge.svg)](https://github.com/StressTestor/PromptPressure/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
+
 behavioral eval for LLM refusal sensitivity, tone consistency, and psychological reasoning. the things benchmarks don't test.
 
-most eval frameworks measure accuracy on known-answer datasets. PromptPressure measures how models *behave* — where they draw the refusal line, whether they change helpfulness based on tone, whether they cave to sycophancy, whether their persona breaks under pressure.
+most eval frameworks measure accuracy on known-answer datasets. PromptPressure measures how models *behave*. where they draw the refusal line, whether they change helpfulness based on tone, whether they cave to sycophancy, whether their persona breaks under pressure.
 
 200+ prompts across 10 behavioral categories. run against any model. get a report.
 
@@ -120,7 +124,7 @@ if name_lower == "your_adapter":
 
 Claude Code and OpenCode run through their respective CLI tools. no API keys, no per-token costs. if you have a subscription, the eval runs are free.
 
-**Claude Code** — uses `claude -p` in non-interactive mode. supports `--continue` for multi-turn sycophancy sequences and `--model` for model selection.
+**Claude Code** uses `claude -p` in non-interactive mode. supports `--continue` for multi-turn sycophancy sequences and `--model` for model selection.
 
 ```bash
 promptpressure --multi-config configs/config_claude_code.yaml
@@ -131,7 +135,7 @@ adapter: claude-code
 model: sonnet
 ```
 
-**OpenCode Zen** — uses `opencode -p` in quiet mode. auto-selects the best model via Zen for each prompt.
+**OpenCode Zen** uses `opencode run` in non-interactive mode. auto-selects the best model via Zen for each prompt.
 
 ```bash
 promptpressure --multi-config configs/config_opencode_zen.yaml
@@ -214,6 +218,30 @@ collect_metrics: true
 run multiple configs in one pass:
 ```bash
 promptpressure --multi-config configs/a.yaml configs/b.yaml
+```
+
+---
+
+## project structure
+
+```
+promptpressure/
+  adapters/           # model connectors (openrouter, groq, ollama, claude code, etc)
+  plugins/            # scorer plugin system
+  monitoring/         # prometheus metrics + docker-compose
+  templates/          # jinja2 report templates (html, markdown)
+  api.py              # fastapi server (optional, for programmatic access)
+  cli.py              # main eval runner
+  config.py           # pydantic settings
+  database.py         # sqlalchemy models
+  metrics.py          # metrics collector
+  rate_limit.py       # async token bucket rate limiter
+  reporting.py        # report generator
+configs/              # yaml eval configs per model
+evals_dataset.json    # 220 behavioral eval prompts
+results/              # saved eval results (per-model JSON)
+examples/             # sample reports and comparison data
+tests/                # pytest suite
 ```
 
 ---

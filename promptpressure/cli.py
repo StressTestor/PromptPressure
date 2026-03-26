@@ -442,7 +442,7 @@ async def post_analyze_groq(results, config, suffix="all_models"):
             rubric_list = ", ".join(item_rubric) if item_rubric else ", ".join(rubric_fields)
             fields_to_grade = item_rubric if item_rubric else rubric_fields
 
-            # Format prompt/response for grading — handle multi-turn
+            # Format prompt/response for grading (handle multi-turn)
             if item.get("multi_turn") and item.get("turn_responses"):
                 prompt_section = "This is a MULTI-TURN conversation. Grade each turn's response.\n\n"
                 for tr in item["turn_responses"]:
@@ -560,7 +560,7 @@ async def post_analyze_openrouter(results, config, suffix="all_models"):
         print(f"Error writing analysis: {e}")
 
 async def main_async():
-    parser = argparse.ArgumentParser(description="PromptPressure v3.0 — Behavioral LLM Eval")
+    parser = argparse.ArgumentParser(description="PromptPressure v3.0 - Behavioral LLM Eval")
     parser.add_argument("--multi-config", nargs='+', help="YAML config file(s)")
     parser.add_argument("--post-analyze", choices=["groq", "openrouter"], help="Optional post-analysis adapter")
     parser.add_argument("--schema", action="store_true", help="Dump JSON Schema for configuration and exit")
