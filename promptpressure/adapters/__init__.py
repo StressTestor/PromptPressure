@@ -9,6 +9,7 @@ from .openrouter_adapter import generate_response as openrouter_generate_respons
 from .ollama_adapter import generate_response as ollama_generate_response
 from .claude_code_adapter import generate_response as claude_code_generate_response
 from .opencode_adapter import generate_response as opencode_generate_response
+from .deepseek_r1_adapter import generate_response as deepseek_r1_generate_response
 
 
 def load_adapter(name):
@@ -34,4 +35,6 @@ def load_adapter(name):
         return lambda text, config, messages=None: claude_code_generate_response(text, config.get("model", ""), config, messages=messages)
     if name_lower in ("opencode_zen", "opencode"):
         return lambda text, config, messages=None: opencode_generate_response(text, config.get("model", ""), config, messages=messages)
+    if name_lower in ("deepseek_r1", "deepseek"):
+        return lambda text, config, messages=None: deepseek_r1_generate_response(text, config.get("model_name", "deepseek/deepseek-r1"), config, messages=messages)
     raise ValueError(f"Unknown adapter: {name}")
