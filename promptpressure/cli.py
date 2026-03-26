@@ -141,9 +141,17 @@ async def run_evaluation_suite(config, adapter_name):
         error_msg = None
         plugin_scores = {}
 
+        reasoning = ""
         try:
             response = await adapter_fn(prompt_text, config)
             success = True
+
+            # Capture reasoning tokens if adapter supports it (e.g. DeepSeek R1)
+            try:
+                from promptpressure.adapters.deepseek_r1_adapter import get_last_reasoning
+                reasoning = get_last_reasoning()
+            except (ImportError, Exception):
+                pass
 
             if collect_metrics:
                 response_time = time.time() - start_time
@@ -183,6 +191,8 @@ async def run_evaluation_suite(config, adapter_name):
             "error": error_msg,
             "plugin_scores": plugin_scores
         }
+        if reasoning:
+            result_data["reasoning"] = reasoning
 
         await emit_event("end_prompt", {
             "id": entry.get("id"),
@@ -230,13 +240,24 @@ async def run_evaluation_suite(config, adapter_name):
                 # Send full conversation history to adapter
                 response_text = await adapter_fn(turn_content, config, messages=list(conversation))
 
+                # Capture reasoning tokens if available
+                turn_reasoning = ""
+                try:
+                    from promptpressure.adapters.deepseek_r1_adapter import get_last_reasoning
+                    turn_reasoning = get_last_reasoning()
+                except (ImportError, Exception):
+                    pass
+
                 # Add assistant response to conversation history
                 conversation.append({"role": "assistant", "content": response_text})
-                turn_responses.append({
+                turn_entry = {
                     "turn": turn_idx,
                     "user": turn_content,
                     "assistant": response_text
-                })
+                }
+                if turn_reasoning:
+                    turn_entry["reasoning"] = turn_reasoning
+                turn_responses.append(turn_entry)
 
             except Exception as e:
                 error_msg = f"Turn {turn_idx}: {str(e)}"
