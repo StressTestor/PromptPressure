@@ -4,11 +4,11 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
 
-behavioral eval for LLM refusal sensitivity, tone consistency, and psychological reasoning. the things benchmarks don't test.
+multi-turn behavioral drift detection for LLMs. the things benchmarks don't test.
 
-most eval frameworks measure accuracy on known-answer datasets. PromptPressure measures how models *behave*. where they draw the refusal line, whether they change helpfulness based on tone, whether they cave to sycophancy, whether their persona breaks under pressure.
+most eval frameworks measure accuracy on known-answer datasets. PromptPressure measures how models *behave* over sustained interaction. does the model's tone drift at turn 8? does it cave to sycophancy after 3 rounds of pressure? does persona stability degrade as context fills up?
 
-200+ prompts across 10 behavioral categories. run against any model. get a report.
+190 active prompts across 11 behavioral categories, tiered for CI speed. run against any model. get a per-turn behavioral report.
 
 ---
 
@@ -22,14 +22,14 @@ pip install -e .
 cp .env.example .env
 # add your API keys (see .env.example for which adapters need what)
 
-promptpressure --multi-config configs/config_mock.yaml
+promptpressure --quick --multi-config configs/config_mock.yaml
 ```
 
-results land in `outputs/<timestamp>/` with CSVs, metrics JSON, and an HTML report.
+`--quick` runs 3 sequences (~18 turns) in under 10 minutes. results land in `outputs/<timestamp>/` with CSVs, metrics JSON, and an HTML report.
 
 for a real eval against a cloud model:
 ```bash
-promptpressure --multi-config configs/config_openrouter_gpt_oss_20b_free.yaml
+promptpressure --tier full --multi-config configs/config_openrouter_gpt_oss_20b_free.yaml
 ```
 
 ---
@@ -38,18 +38,17 @@ promptpressure --multi-config configs/config_openrouter_gpt_oss_20b_free.yaml
 
 | category | count | what it tests |
 |----------|-------|---------------|
-| refusal sensitivity | 30+ | graduated harm levels from clearly safe to borderline. where does the model draw the line? |
-| tone consistency | 20+ | same request in formal/casual/hostile/pleading. does helpfulness change based on how you ask? |
-| psychological reasoning | 25+ | theory of mind, emotional inference, manipulation detection |
-| instruction following under conflict | 25+ | contradictory instructions, system vs user prompt conflicts |
-| model drift detection | 20+ | calibration questions with known answers, knowledge cutoff awareness |
-| sycophancy detection | 20+ | wrong premises ("2+2=5, right?"), answer changes when challenged |
-| persona stability | 15+ | system prompt adherence under adversarial messages, jailbreak resistance |
-| output format compliance | 15+ | JSON output, structured extraction, word count constraints |
-| multilingual consistency | 15+ | same eval in EN/ES/ZH/AR. does behavior change across languages? |
-| context window stress | 15+ | long-context faithfulness, needle-in-haystack, buried instructions |
+| sycophancy detection | 25 | wrong premises, answer changes when challenged, multi-turn pressure sequences |
+| instruction following under conflict | 25 | contradictory instructions, system vs user prompt conflicts |
+| tone consistency | 20 | same request in formal/casual/hostile/pleading. does helpfulness change? |
+| psychological reasoning | 25 | theory of mind, emotional inference, manipulation detection |
+| model drift detection | 20 | calibration questions with known answers, knowledge cutoff awareness |
+| persona stability | 15 | system prompt adherence under adversarial messages |
+| output format compliance | 15 | JSON output, structured extraction, word count constraints |
+| multilingual consistency | 15 | same eval in EN/ES/ZH/AR. does behavior change across languages? |
+| context window stress | 15 | long-context faithfulness, needle-in-haystack, buried instructions |
 
-total: 200+ prompts. each with expected behavior and grading criteria.
+190 active prompts. 30 adversarial refusal sensitivity prompts [archived separately](#archived-adversarial-suite). each prompt has expected behavior, grading criteria, and tier/difficulty tags.
 
 ---
 
@@ -69,6 +68,52 @@ total: 200+ prompts. each with expected behavior and grading criteria.
 | built-in grading pipeline | yes | yes | yes | no |
 
 PromptPressure is not trying to replace accuracy benchmarks. it tests the behavioral layer that accuracy benchmarks miss.
+
+---
+
+## run tiers
+
+every eval entry is tagged with a tier. tiers are cumulative: `--tier quick` runs both smoke and quick entries.
+
+| tier | entries | turns | time (fast models) | use case |
+|------|---------|-------|--------------------|----------|
+| `smoke` | 0* | ~0 | <60s | CI gate (sequences coming in v3.2) |
+| `quick` | 3 | ~18 | <10 min | local dev, default |
+| `full` | 190 | ~500+ | ~1 hr | pre-release |
+| `deep` | 190 | ~500+ | 2+ hrs | quarterly audit (20-turn sequences coming in v3.2) |
+
+*smoke and deep tier sequences are planned for v3.2 when multi-turn content is generated.
+
+```bash
+promptpressure --quick --multi-config config.yaml       # 3 sequences, fast
+promptpressure --tier full --multi-config config.yaml    # all 190 sequences
+promptpressure --smoke --multi-config config.yaml        # CI mode (needs smoke-tagged entries)
+```
+
+the default tier is `quick`. entries without a tier field default to `full`.
+
+---
+
+## per-turn metrics
+
+multi-turn sequences automatically compute behavioral metrics after each turn:
+
+- **response_length_ratio**: `len(response) / len(user_message)`. detects terse/verbose drift across turns. a model that starts with detailed responses and shrinks to one-liners is drifting.
+
+metrics are attached to each turn in the JSON output under `turn_responses[].metrics` and aggregated at `result_data.per_turn_metrics`.
+
+---
+
+## archived adversarial suite
+
+30 refusal sensitivity prompts are archived separately at `archive/adversarial/refusal_sensitivity.json`. these test how models handle requests that could be interpreted as harmful but are actually benign (academic research, creative writing, historical analysis).
+
+archived because hosted API providers may flag or rate-limit accounts running adversarial-adjacent prompts at scale.
+
+run them explicitly:
+```bash
+promptpressure --dataset archive/adversarial/refusal_sensitivity.json --multi-config config.yaml
+```
 
 ---
 
@@ -186,10 +231,14 @@ outputs a machine-readable JSON summary to stdout. exits 0 if all prompts pass, 
 $ promptpressure --help
 usage: promptpressure [-h] [--multi-config MULTI_CONFIG [MULTI_CONFIG ...]]
                       [--post-analyze {groq,openrouter}] [--schema] [--ci]
+                      [--tier {smoke,quick,full,deep}] [--smoke] [--quick]
                       {plugins} ...
 
 options:
   --multi-config    YAML config file(s)
+  --tier            run tier: smoke, quick, full, deep (default: quick)
+  --smoke           shortcut for --tier smoke
+  --quick           shortcut for --tier quick
   --post-analyze    post-eval grading via groq or openrouter
   --schema          dump JSON Schema for configuration
   --ci              machine-readable output + exit codes
@@ -211,6 +260,7 @@ dataset: evals_dataset.json
 output: results.csv
 output_dir: outputs
 temperature: 0.7
+tier: quick                    # smoke | quick | full | deep
 max_workers: 5
 collect_metrics: true
 ```
@@ -233,15 +283,19 @@ promptpressure/
   api.py              # fastapi server (optional, for programmatic access)
   cli.py              # main eval runner
   config.py           # pydantic settings
+  tier.py             # tier filtering (smoke/quick/full/deep)
+  per_turn_metrics.py # automated per-turn behavioral metrics
   database.py         # sqlalchemy models
   metrics.py          # metrics collector
   rate_limit.py       # async token bucket rate limiter
   reporting.py        # report generator
 configs/              # yaml eval configs per model
-evals_dataset.json    # 220 behavioral eval prompts
+evals_dataset.json    # 190 behavioral eval prompts (tiered)
+archive/adversarial/  # 30 archived refusal sensitivity prompts
+schema.json           # JSON Schema for dataset entry format
 results/              # saved eval results (per-model JSON)
 examples/             # sample reports and comparison data
-tests/                # pytest suite
+tests/                # pytest suite (50 tests)
 ```
 
 ---
