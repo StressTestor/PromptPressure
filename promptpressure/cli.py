@@ -245,8 +245,16 @@ async def run_evaluation_suite(config, adapter_name):
             conversation.append({"role": turn_role, "content": turn_content})
 
             try:
-                # Send full conversation history to adapter
-                response_text = await adapter_fn(turn_content, config, messages=list(conversation))
+                # Timeout scales with turn count
+                base_timeout = config.get("timeout", 60)
+                turn_timeout = base_timeout * (1 + turn_idx * 0.5)
+                try:
+                    response_text = await asyncio.wait_for(
+                        adapter_fn(turn_content, config, messages=list(conversation)),
+                        timeout=turn_timeout
+                    )
+                except asyncio.TimeoutError:
+                    raise TimeoutError(f"Turn {turn_idx} timed out after {turn_timeout:.0f}s")
 
                 # Capture reasoning tokens if available
                 turn_reasoning = ""
@@ -258,6 +266,14 @@ async def run_evaluation_suite(config, adapter_name):
 
                 # Add assistant response to conversation history
                 conversation.append({"role": "assistant", "content": response_text})
+
+                # Rough token estimation for context window warning
+                total_chars = sum(len(m["content"]) for m in conversation)
+                estimated_tokens = total_chars // 4
+                if estimated_tokens > 6000 and turn_idx < len(turns):
+                    print(f"  warning: {entry.get('id')} at ~{estimated_tokens} tokens after turn {turn_idx} "
+                          f"(may exceed small model context windows)")
+
                 turn_entry = {
                     "turn": turn_idx,
                     "user": turn_content,
