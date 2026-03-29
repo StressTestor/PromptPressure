@@ -1,5 +1,29 @@
 # changelog
 
+## 3.1.0 - 2026-03-29
+
+multi-turn behavioral drift infrastructure. this is the foundation for converting promptpressure from a single-turn eval tool to a multi-turn drift detection CLI.
+
+### added
+- 4-tier run system: `--tier smoke|quick|full|deep` with `--smoke` and `--quick` shortcuts
+- tier filtering with cumulative semantics (smoke < quick < full < deep)
+- per-turn `response_length_ratio` metric computed automatically during multi-turn evals
+- per-turn timeout scaling with 5x cap (prevents indefinite hangs on deep sequences)
+- context window token estimation with warning when approaching model limits
+- `tier` field in pydantic Settings with `Literal` type validation
+- `schema.json` documenting the full entry format (JSON Schema 2020-12)
+- `archive/adversarial/` directory for refusal sensitivity entries
+- `subcategory`, `tier`, `difficulty`, `per_turn_expectations` fields to dataset schema
+
+### changed
+- default run tier is `quick` (was: run everything)
+- dataset validation now accepts and validates 4 new optional fields
+- all 190 dataset entries tagged with tier/subcategory/difficulty
+- exits non-zero when tier filter produces 0 matching entries
+
+### removed
+- 30 refusal sensitivity entries moved from default dataset to `archive/adversarial/refusal_sensitivity.json` (still accessible via `--dataset`)
+
 ## 3.0.0 - 2026-03-25
 
 breaking overhaul. if you're upgrading from 2.x, start fresh.
