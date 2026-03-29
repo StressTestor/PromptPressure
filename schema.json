@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PromptPressure Eval Dataset",
+  "description": "Schema for entries in evals_dataset.json",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["id", "category", "prompt", "expected_behavior", "eval_criteria"],
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "Unique entry ID, e.g. if_001, sy_025"
+      },
+      "category": {
+        "type": "string",
+        "description": "Evaluation category name"
+      },
+      "subcategory": {
+        "type": "string",
+        "description": "Subcategory within the category"
+      },
+      "tier": {
+        "type": "string",
+        "enum": ["smoke", "quick", "full", "deep"],
+        "description": "Run tier. smoke < quick < full < deep (cumulative)"
+      },
+      "difficulty": {
+        "type": "string",
+        "enum": ["easy", "medium", "hard"],
+        "description": "Difficulty level (orthogonal to tier)"
+      },
+      "prompt": {
+        "oneOf": [
+          {"type": "string", "minLength": 1},
+          {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["role", "content"],
+              "properties": {
+                "role": {"type": "string"},
+                "content": {"type": "string", "minLength": 1}
+              }
+            }
+          }
+        ],
+        "description": "Single-turn string or multi-turn message array"
+      },
+      "expected_behavior": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Human-readable description of expected model behavior"
+      },
+      "per_turn_expectations": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["turn", "expected"],
+          "properties": {
+            "turn": {"type": "integer", "minimum": 1},
+            "expected": {"type": "string", "minLength": 1}
+          }
+        },
+        "description": "Per-turn expected behaviors for multi-turn sequences"
+      },
+      "eval_criteria": {
+        "type": "object",
+        "description": "Key-value pairs for LLM-as-judge grading"
+      },
+      "notes": {
+        "type": "string",
+        "description": "Optional authoring notes"
+      }
+    }
+  }
+}

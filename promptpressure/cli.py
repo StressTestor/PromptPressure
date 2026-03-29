@@ -21,6 +21,8 @@ from promptpressure.metrics import MetricsCollector, get_metrics_analyzer
 from promptpressure.monitoring import start_metrics_server, stop_metrics_server, record_api_request, record_evaluation_start, record_evaluation_end, record_prompt_processing, record_response, update_custom_metrics
 from promptpressure.reporting import ReportGenerator
 from promptpressure.database import init_db, get_db_session, Evaluation, Result, Metric, DATABASE_URL
+from promptpressure.per_turn_metrics import compute_turn_metrics
+from promptpressure.tier import filter_by_tier
 
 def log_error(output_dir, error_msg):
     log_path = os.path.join(output_dir, "error.log")
@@ -36,6 +38,16 @@ async def run_evaluation_suite(config, adapter_name):
     dataset_file = config.get("dataset", "evals_dataset.json")
     with open(dataset_file, "r", encoding="utf-8") as f:
         prompts = json.load(f)
+
+    # Tier filtering
+    tier = config.get("tier", "quick")
+    original_count = len(prompts)
+    prompts, skipped = filter_by_tier(prompts, tier, warn_invalid=True)
+    print(f"Tier '{tier}': {len(prompts)}/{original_count} sequences selected")
+    if not prompts:
+        print(f"ERROR: Tier '{tier}' matched 0 entries. Nothing to evaluate.")
+        import sys
+        sys.exit(1)
 
     # Prepare output directory
     base_output_dir = config.get("output_dir", "outputs")
@@ -237,8 +249,16 @@ async def run_evaluation_suite(config, adapter_name):
             conversation.append({"role": turn_role, "content": turn_content})
 
             try:
-                # Send full conversation history to adapter
-                response_text = await adapter_fn(turn_content, config, messages=list(conversation))
+                # Timeout scales with turn count, capped at 5x base
+                base_timeout = config.get("timeout", 60)
+                turn_timeout = min(base_timeout * (1 + turn_idx * 0.5), base_timeout * 5)
+                try:
+                    response_text = await asyncio.wait_for(
+                        adapter_fn(turn_content, config, messages=list(conversation)),
+                        timeout=turn_timeout
+                    )
+                except asyncio.TimeoutError as e:
+                    raise TimeoutError(f"Turn {turn_idx} timed out after {turn_timeout:.0f}s") from e
 
                 # Capture reasoning tokens if available
                 turn_reasoning = ""
@@ -250,6 +270,14 @@ async def run_evaluation_suite(config, adapter_name):
 
                 # Add assistant response to conversation history
                 conversation.append({"role": "assistant", "content": response_text})
+
+                # Rough token estimation for context window warning
+                total_chars = sum(len(m["content"]) for m in conversation)
+                estimated_tokens = total_chars // 4
+                if estimated_tokens > 6000 and turn_idx < len(turns):
+                    print(f"  warning: {entry.get('id')} at ~{estimated_tokens} tokens after turn {turn_idx} "
+                          f"(may exceed small model context windows)")
+
                 turn_entry = {
                     "turn": turn_idx,
                     "user": turn_content,
@@ -257,6 +285,10 @@ async def run_evaluation_suite(config, adapter_name):
                 }
                 if turn_reasoning:
                     turn_entry["reasoning"] = turn_reasoning
+                # Compute per-turn behavioral metrics
+                turn_entry["metrics"] = compute_turn_metrics(
+                    turn_content, response_text, turn_number=turn_idx
+                )
                 turn_responses.append(turn_entry)
 
             except Exception as e:
@@ -284,6 +316,9 @@ async def run_evaluation_suite(config, adapter_name):
             record_response(success=False)
             record_api_request(model=model_name, adapter=adapter_name, duration=duration, success=False, error_type="MultiTurnError")
 
+        # Aggregate per-turn metrics for the sequence
+        per_turn_metrics = [tr["metrics"] for tr in turn_responses if "metrics" in tr]
+
         # Build combined response for backward compat (CSV/JSON output)
         combined_response = "\n\n".join(
             f"[Turn {tr['turn']}]\nUser: {tr['user']}\nAssistant: {tr['assistant']}"
@@ -306,7 +341,8 @@ async def run_evaluation_suite(config, adapter_name):
             "success": success,
             "error": error_msg,
             "multi_turn": True,
-            "plugin_scores": {}
+            "plugin_scores": {},
+            "per_turn_metrics": per_turn_metrics,
         }
 
         await emit_event("end_prompt", {
@@ -565,7 +601,11 @@ async def main_async():
     parser.add_argument("--post-analyze", choices=["groq", "openrouter"], help="Optional post-analysis adapter")
     parser.add_argument("--schema", action="store_true", help="Dump JSON Schema for configuration and exit")
     parser.add_argument("--ci", action="store_true", help="CI mode: output machine-readable JSON summary, exit 1 on any failure")
-    
+    parser.add_argument("--tier", choices=["smoke", "quick", "full", "deep"],
+                        default=None, help="Run tier (smoke/quick/full/deep). Default: quick")
+    parser.add_argument("--smoke", action="store_true", help="Shortcut for --tier smoke")
+    parser.add_argument("--quick", action="store_true", help="Shortcut for --tier quick")
+
     # Plugin CLI commands
     subparsers = parser.add_subparsers(dest="command", help="Sub-commands")
     
@@ -581,6 +621,16 @@ async def main_async():
     install_parser.add_argument("name", help="Name of the plugin to install")
 
     args = parser.parse_args()
+
+    # Resolve tier from flags
+    if args.smoke:
+        tier_override = "smoke"
+    elif args.quick:
+        tier_override = "quick"
+    elif args.tier:
+        tier_override = args.tier
+    else:
+        tier_override = None  # use config default
 
     if args.schema:
         from promptpressure.config import Settings
@@ -629,6 +679,8 @@ async def main_async():
             import sys
             sys.exit(1)
         config_dict = config.model_dump()
+        if tier_override:
+            config_dict["tier"] = tier_override
         last_config = config_dict
 
         results, out_dir, metrics_collector = await run_evaluation_suite(config_dict, config_dict.get("adapter"))
