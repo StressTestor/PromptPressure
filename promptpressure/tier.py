@@ -8,15 +8,16 @@ Entries without a tier field default to "full".
 TIER_ORDER = ["smoke", "quick", "full", "deep"]
 
 
-def filter_by_tier(entries: list[dict], tier: str) -> list[dict]:
+def filter_by_tier(entries: list[dict], tier: str, warn_invalid: bool = False) -> tuple[list[dict], int]:
     """Filter dataset entries by tier level (cumulative).
 
     Args:
         entries: list of dataset entry dicts
         tier: requested tier level (smoke, quick, full, deep)
+        warn_invalid: if True, print warning for entries with invalid tier values
 
     Returns:
-        filtered list containing entries at or below the requested tier
+        tuple of (filtered list, count of skipped invalid entries)
 
     Raises:
         ValueError: if tier is not a valid tier name
@@ -27,10 +28,17 @@ def filter_by_tier(entries: list[dict], tier: str) -> list[dict]:
     max_index = TIER_ORDER.index(tier)
 
     result = []
+    skipped = []
     for entry in entries:
         entry_tier = entry.get("tier", "full")
         if entry_tier not in TIER_ORDER:
-            continue  # skip entries with invalid tier values
+            skipped.append(entry.get("id", "unknown"))
+            continue
         if TIER_ORDER.index(entry_tier) <= max_index:
             result.append(entry)
-    return result
+
+    if warn_invalid and skipped:
+        print(f"  warning: {len(skipped)} entries skipped (invalid tier): {', '.join(skipped[:5])}"
+              + (f" and {len(skipped) - 5} more" if len(skipped) > 5 else ""))
+
+    return result, len(skipped)

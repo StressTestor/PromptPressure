@@ -22,6 +22,7 @@ from promptpressure.monitoring import start_metrics_server, stop_metrics_server,
 from promptpressure.reporting import ReportGenerator
 from promptpressure.database import init_db, get_db_session, Evaluation, Result, Metric, DATABASE_URL
 from promptpressure.per_turn_metrics import compute_turn_metrics
+from promptpressure.tier import filter_by_tier
 
 def log_error(output_dir, error_msg):
     log_path = os.path.join(output_dir, "error.log")
@@ -39,11 +40,14 @@ async def run_evaluation_suite(config, adapter_name):
         prompts = json.load(f)
 
     # Tier filtering
-    from promptpressure.tier import filter_by_tier
     tier = config.get("tier", "quick")
     original_count = len(prompts)
-    prompts = filter_by_tier(prompts, tier)
+    prompts, skipped = filter_by_tier(prompts, tier, warn_invalid=True)
     print(f"Tier '{tier}': {len(prompts)}/{original_count} sequences selected")
+    if not prompts:
+        print(f"ERROR: Tier '{tier}' matched 0 entries. Nothing to evaluate.")
+        import sys
+        sys.exit(1)
 
     # Prepare output directory
     base_output_dir = config.get("output_dir", "outputs")
@@ -245,16 +249,16 @@ async def run_evaluation_suite(config, adapter_name):
             conversation.append({"role": turn_role, "content": turn_content})
 
             try:
-                # Timeout scales with turn count
+                # Timeout scales with turn count, capped at 5x base
                 base_timeout = config.get("timeout", 60)
-                turn_timeout = base_timeout * (1 + turn_idx * 0.5)
+                turn_timeout = min(base_timeout * (1 + turn_idx * 0.5), base_timeout * 5)
                 try:
                     response_text = await asyncio.wait_for(
                         adapter_fn(turn_content, config, messages=list(conversation)),
                         timeout=turn_timeout
                     )
-                except asyncio.TimeoutError:
-                    raise TimeoutError(f"Turn {turn_idx} timed out after {turn_timeout:.0f}s")
+                except asyncio.TimeoutError as e:
+                    raise TimeoutError(f"Turn {turn_idx} timed out after {turn_timeout:.0f}s") from e
 
                 # Capture reasoning tokens if available
                 turn_reasoning = ""
@@ -313,7 +317,7 @@ async def run_evaluation_suite(config, adapter_name):
             record_api_request(model=model_name, adapter=adapter_name, duration=duration, success=False, error_type="MultiTurnError")
 
         # Aggregate per-turn metrics for the sequence
-        per_turn_metrics = [tr.get("metrics", {}) for tr in turn_responses if tr.get("metrics")]
+        per_turn_metrics = [tr["metrics"] for tr in turn_responses if "metrics" in tr]
 
         # Build combined response for backward compat (CSV/JSON output)
         combined_response = "\n\n".join(

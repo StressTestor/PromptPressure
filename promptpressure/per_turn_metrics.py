@@ -21,7 +21,7 @@ def compute_response_length_ratio(user_message: str, response: str) -> float:
 def compute_turn_metrics(
     user_message: str,
     response: str,
-    turn_number: int = 0,
+    turn_number: int = 1,
 ) -> dict:
     """Compute all automated metrics for a single turn.
 

@@ -4,7 +4,7 @@ Handles loading and validation of configuration with secure secret management.
 """
 import os
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Literal
 
 from dotenv import load_dotenv
 from pydantic import Field, model_validator
@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     temperature: float = Field(0.7, ge=0.0, le=2.0, description="Sampling temperature")
 
     # Tier settings
-    tier: str = Field("quick", description="Run tier: smoke (<60s CI), quick (<10min), full (~1hr), deep (all)")
+    tier: Literal["smoke", "quick", "full", "deep"] = Field("quick", description="Run tier: smoke (<60s CI), quick (<10min), full (~1hr), deep (all)")
 
     # Performance settings
     max_workers: int = Field(1, ge=1, le=10, description="Number of concurrent workers for prompt evaluation")
