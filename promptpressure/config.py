@@ -32,7 +32,10 @@ class Settings(BaseSettings):
     output: str = Field(..., description="Output filename for evaluation results")
     output_dir: str = Field("outputs", description="Directory for output files")
     temperature: float = Field(0.7, ge=0.0, le=2.0, description="Sampling temperature")
-    
+
+    # Tier settings
+    tier: str = Field("quick", description="Run tier: smoke (<60s CI), quick (<10min), full (~1hr), deep (all)")
+
     # Performance settings
     max_workers: int = Field(1, ge=1, le=10, description="Number of concurrent workers for prompt evaluation")
 

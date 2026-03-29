@@ -37,6 +37,13 @@ async def run_evaluation_suite(config, adapter_name):
     with open(dataset_file, "r", encoding="utf-8") as f:
         prompts = json.load(f)
 
+    # Tier filtering
+    from promptpressure.tier import filter_by_tier
+    tier = config.get("tier", "quick")
+    original_count = len(prompts)
+    prompts = filter_by_tier(prompts, tier)
+    print(f"Tier '{tier}': {len(prompts)}/{original_count} sequences selected")
+
     # Prepare output directory
     base_output_dir = config.get("output_dir", "outputs")
     use_ts = config.get("use_timestamp_output_dir", True)
@@ -565,7 +572,11 @@ async def main_async():
     parser.add_argument("--post-analyze", choices=["groq", "openrouter"], help="Optional post-analysis adapter")
     parser.add_argument("--schema", action="store_true", help="Dump JSON Schema for configuration and exit")
     parser.add_argument("--ci", action="store_true", help="CI mode: output machine-readable JSON summary, exit 1 on any failure")
-    
+    parser.add_argument("--tier", choices=["smoke", "quick", "full", "deep"],
+                        default=None, help="Run tier (smoke/quick/full/deep). Default: quick")
+    parser.add_argument("--smoke", action="store_true", help="Shortcut for --tier smoke")
+    parser.add_argument("--quick", action="store_true", help="Shortcut for --tier quick")
+
     # Plugin CLI commands
     subparsers = parser.add_subparsers(dest="command", help="Sub-commands")
     
@@ -581,6 +592,16 @@ async def main_async():
     install_parser.add_argument("name", help="Name of the plugin to install")
 
     args = parser.parse_args()
+
+    # Resolve tier from flags
+    if args.smoke:
+        tier_override = "smoke"
+    elif args.quick:
+        tier_override = "quick"
+    elif args.tier:
+        tier_override = args.tier
+    else:
+        tier_override = None  # use config default
 
     if args.schema:
         from promptpressure.config import Settings
@@ -629,6 +650,8 @@ async def main_async():
             import sys
             sys.exit(1)
         config_dict = config.model_dump()
+        if tier_override:
+            config_dict["tier"] = tier_override
         last_config = config_dict
 
         results, out_dir, metrics_collector = await run_evaluation_suite(config_dict, config_dict.get("adapter"))
