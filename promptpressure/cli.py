@@ -21,6 +21,7 @@ from promptpressure.metrics import MetricsCollector, get_metrics_analyzer
 from promptpressure.monitoring import start_metrics_server, stop_metrics_server, record_api_request, record_evaluation_start, record_evaluation_end, record_prompt_processing, record_response, update_custom_metrics
 from promptpressure.reporting import ReportGenerator
 from promptpressure.database import init_db, get_db_session, Evaluation, Result, Metric, DATABASE_URL
+from promptpressure.per_turn_metrics import compute_turn_metrics
 
 def log_error(output_dir, error_msg):
     log_path = os.path.join(output_dir, "error.log")
@@ -264,6 +265,10 @@ async def run_evaluation_suite(config, adapter_name):
                 }
                 if turn_reasoning:
                     turn_entry["reasoning"] = turn_reasoning
+                # Compute per-turn behavioral metrics
+                turn_entry["metrics"] = compute_turn_metrics(
+                    turn_content, response_text, turn_number=turn_idx
+                )
                 turn_responses.append(turn_entry)
 
             except Exception as e:
@@ -291,6 +296,9 @@ async def run_evaluation_suite(config, adapter_name):
             record_response(success=False)
             record_api_request(model=model_name, adapter=adapter_name, duration=duration, success=False, error_type="MultiTurnError")
 
+        # Aggregate per-turn metrics for the sequence
+        per_turn_metrics = [tr.get("metrics", {}) for tr in turn_responses if tr.get("metrics")]
+
         # Build combined response for backward compat (CSV/JSON output)
         combined_response = "\n\n".join(
             f"[Turn {tr['turn']}]\nUser: {tr['user']}\nAssistant: {tr['assistant']}"
@@ -313,7 +321,8 @@ async def run_evaluation_suite(config, adapter_name):
             "success": success,
             "error": error_msg,
             "multi_turn": True,
-            "plugin_scores": {}
+            "plugin_scores": {},
+            "per_turn_metrics": per_turn_metrics,
         }
 
         await emit_event("end_prompt", {
