@@ -290,6 +290,15 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False):
         if reasoning:
             result_data["reasoning"] = reasoning
 
+        # capture multi-agent metadata (grok sub-agent routing, etc)
+        try:
+            from promptpressure.adapters.litellm_adapter import get_last_metadata
+            agent_meta = get_last_metadata()
+            if agent_meta:
+                result_data["agent_metadata"] = agent_meta
+        except (ImportError, Exception):
+            pass
+
         await emit_event("end_prompt", {
             "id": entry.get("id"),
             "success": success,

@@ -1,14 +1,14 @@
-# grok-4.20 multi-agent variant via local litellm proxy (direct xAI API)
+# grok-4.20 multi-agent variant — direct xAI API (no proxy needed)
 # 2M context, $2/$6 per M tokens (50% off in batch)
-# start proxy first: scripts/start-litellm.sh
 adapter: litellm
-model: grok-4.20-multi-agent
-model_name: Grok 4.20 Multi-Agent (litellm)
+model: grok-4.20-multi-agent-0309
+model_name: Grok 4.20 Multi-Agent
 is_simulation: false
 dataset: evals_dataset.json
-output: eval_litellm_grok_multi_agent.csv
+output: eval_grok_multi_agent.csv
 output_dir: outputs
-litellm_endpoint: http://localhost:4000/v1/chat/completions
+litellm_endpoint: https://api.x.ai/v1/chat/completions
+litellm_api_key: ""
 temperature: 0.7
 tier: full
 use_timestamp_output_dir: true

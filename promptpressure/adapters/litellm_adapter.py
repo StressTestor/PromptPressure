@@ -1,18 +1,17 @@
 """
-LiteLLM proxy adapter for PromptPressure.
+LiteLLM adapter for PromptPressure.
 
-Routes requests through a local litellm proxy (localhost:4000) that
-handles provider routing, key management, and retries. The proxy
-exposes an OpenAI-compatible endpoint so this adapter follows the
-same pattern as the openrouter adapter.
+Routes requests through either a local litellm proxy (localhost:4000) or
+directly to provider APIs via OpenAI-compatible endpoints. The adapter
+auto-detects the API key from provider-specific env vars when the
+endpoint points at a known provider (xAI, OpenAI, etc).
 
 Reasoning token capture: when the model returns reasoning/thinking
-content (deepseek-r1, claude with extended thinking), the adapter
-extracts it and stores it in _last_reasoning for the eval runner.
-This mirrors the deepseek_r1_adapter pattern.
+content (deepseek-r1, grok reasoning, claude extended thinking), the
+adapter extracts it and stores it in _last_reasoning for the eval runner.
 
-The litellm proxy must be running before using this adapter.
-Start it with: scripts/start-litellm.sh
+Multi-agent metadata: when the grok multi-agent model returns metadata
+about which sub-agent handled the response, it's stored in _last_metadata.
 """
 
 import os
@@ -21,10 +20,11 @@ import httpx
 from promptpressure.rate_limit import AsyncRateLimiter
 
 
-# module-level storage for reasoning tokens and usage from the last call.
+# module-level storage for per-call data.
 # the eval runner reads these after each generate_response() call.
 _last_reasoning = ""
-_last_usage = {}  # {"prompt_tokens": int, "completion_tokens": int, "total_tokens": int}
+_last_usage = {}
+_last_metadata = {}  # multi-agent sub-agent info, system_fingerprint, etc.
 
 
 def get_last_reasoning() -> str:
@@ -37,13 +37,54 @@ def get_last_usage() -> dict:
     return _last_usage
 
 
+def get_last_metadata() -> dict:
+    """Return extra metadata from the most recent generate_response call.
+
+    For grok multi-agent, may include sub-agent routing info.
+    """
+    return _last_metadata
+
+
+def _resolve_api_key(endpoint, config):
+    """Resolve the API key based on the endpoint URL.
+
+    Checks config first, then provider-specific env vars based on the
+    endpoint hostname, then falls back to LITELLM_API_KEY.
+    """
+    # explicit config key takes priority
+    key = config.get("litellm_api_key") if config else None
+    if key:
+        return key
+
+    endpoint_lower = (endpoint or "").lower()
+
+    # auto-detect provider from endpoint and use the right env var
+    if "api.x.ai" in endpoint_lower:
+        return os.getenv("XAI_API_KEY", "")
+    if "api.anthropic.com" in endpoint_lower:
+        return os.getenv("ANTHROPIC_API_KEY", "")
+    if "api.deepseek.com" in endpoint_lower:
+        return os.getenv("DEEPSEEK_API_KEY", "")
+    if "generativelanguage.googleapis.com" in endpoint_lower:
+        return os.getenv("GOOGLE_API_KEY", "")
+    if "api.openai.com" in endpoint_lower:
+        return os.getenv("OPENAI_API_KEY", "")
+    if "openrouter.ai" in endpoint_lower:
+        return os.getenv("OPENROUTER_API_KEY", "")
+    if "api.groq.com" in endpoint_lower:
+        return os.getenv("GROQ_API_KEY", "")
+
+    # fallback: generic litellm key (for proxy mode)
+    return os.getenv("LITELLM_API_KEY", "")
+
+
 async def generate_response(prompt, model_name="claude-sonnet-4-6", config=None, messages=None):
     """
-    Generate a response via the local litellm proxy.
+    Generate a response via litellm proxy or direct provider API.
 
     Args:
         prompt: User prompt (ignored if messages provided).
-        model_name: Model name as configured in litellm_config.yaml.
+        model_name: Model name / ID for the target API.
         config: Optional configuration dict.
         messages: Optional message history for multi-turn.
 
@@ -55,12 +96,7 @@ async def generate_response(prompt, model_name="claude-sonnet-4-6", config=None,
         if config else "http://localhost:4000/v1/chat/completions"
     )
 
-    # litellm proxy with no master_key needs no auth.
-    # if a master_key is set, pass it as bearer token.
-    api_key = (
-        config.get("litellm_api_key")
-        if config else None
-    ) or os.getenv("LITELLM_API_KEY", "")
+    api_key = _resolve_api_key(endpoint, config)
 
     headers = {
         "Content-Type": "application/json",
@@ -76,8 +112,17 @@ async def generate_response(prompt, model_name="claude-sonnet-4-6", config=None,
 
     timeout_s = config.get("timeout", 180) if config else 180
 
-    # local proxy, generous rate limit
-    await AsyncRateLimiter.wait("litellm", rate=50.0, burst=100.0)
+    # rate limit based on endpoint: generous for local proxy, standard for cloud
+    if "localhost" in endpoint or "127.0.0.1" in endpoint:
+        await AsyncRateLimiter.wait("litellm", rate=50.0, burst=100.0)
+    else:
+        await AsyncRateLimiter.wait("litellm_cloud", rate=5.0, burst=10.0)
+
+    # detect if we need the Responses API (grok multi-agent uses /v1/responses)
+    use_responses_api = "multi-agent" in model_name.lower() or "multi_agent" in model_name.lower()
+
+    if use_responses_api:
+        return await _call_responses_api(endpoint, headers, model_name, data, timeout_s)
 
     async with httpx.AsyncClient(timeout=timeout_s) as client:
         response = await client.post(endpoint, headers=headers, json=data)
@@ -88,7 +133,7 @@ async def generate_response(prompt, model_name="claude-sonnet-4-6", config=None,
     raw_content = choice.get("content") or ""
 
     # reasoning token capture.
-    # litellm preserves provider-specific fields in the response.
+    # grok reasoning: may use "reasoning_content" or inline tags
     # deepseek-r1: "reasoning_content" field on the message
     # anthropic extended thinking: "thinking" field or content blocks
     # fallback: <think>...</think> tags inline
@@ -105,10 +150,106 @@ async def generate_response(prompt, model_name="claude-sonnet-4-6", config=None,
             reasoning = think_match.group(1).strip()
             raw_content = re.sub(r"<think>.*?</think>", "", raw_content, flags=re.DOTALL).strip()
 
-    global _last_reasoning, _last_usage
+    global _last_reasoning, _last_usage, _last_metadata
+    _last_reasoning = reasoning
+    _last_usage = result.get("usage", {})
+
+    # capture metadata from response
+    metadata = {}
+    if result.get("system_fingerprint"):
+        metadata["system_fingerprint"] = result["system_fingerprint"]
+    if result.get("model") and result["model"] != model_name:
+        metadata["resolved_model"] = result["model"]
+    for field in ("agent", "agent_name", "agent_info", "routing", "sub_agent"):
+        val = choice.get(field) or result.get(field)
+        if val:
+            metadata[field] = val
+    _last_metadata = metadata
+
+    return raw_content
+
+
+async def _call_responses_api(endpoint, headers, model_name, chat_data, timeout_s):
+    """Call the OpenAI Responses API format (used by grok multi-agent).
+
+    The Responses API uses /v1/responses with a different request/response shape
+    than /v1/chat/completions. This translates between the two formats.
+    """
+    # swap endpoint: /v1/chat/completions -> /v1/responses
+    responses_endpoint = endpoint.replace("/v1/chat/completions", "/v1/responses")
+    if responses_endpoint == endpoint:
+        # endpoint didn't have the expected path, construct it
+        base = endpoint.split("/v1/")[0] if "/v1/" in endpoint else endpoint.rstrip("/")
+        responses_endpoint = f"{base}/v1/responses"
+
+    # translate chat format -> responses format
+    messages = chat_data.get("messages", [])
+    # extract the last user message as input
+    user_messages = [m for m in messages if m.get("role") == "user"]
+    input_text = user_messages[-1]["content"] if user_messages else ""
+
+    # build previous turns as instructions context if multi-turn
+    instructions = None
+    if len(messages) > 1:
+        context_parts = []
+        for m in messages[:-1]:  # all except last
+            role = m.get("role", "user")
+            context_parts.append(f"[{role}]: {m.get('content', '')}")
+        instructions = "Previous conversation:\n" + "\n".join(context_parts)
+
+    responses_data = {
+        "model": model_name,
+        "input": input_text,
+        "temperature": chat_data.get("temperature", 0.7),
+    }
+    if instructions:
+        responses_data["instructions"] = instructions
+
+    async with httpx.AsyncClient(timeout=timeout_s) as client:
+        response = await client.post(responses_endpoint, headers=headers, json=responses_data)
+        response.raise_for_status()
+        result = response.json()
+
+    # extract text from responses format
+    raw_content = ""
+    output_list = result.get("output", [])
+    for output_item in output_list:
+        if output_item.get("type") == "message":
+            for content_block in output_item.get("content", []):
+                if content_block.get("type") == "output_text":
+                    raw_content += content_block.get("text", "")
+
+    # reasoning from responses format
+    reasoning_data = result.get("reasoning", {})
+    reasoning = reasoning_data.get("summary") or "" if isinstance(reasoning_data, dict) else ""
+
+    global _last_reasoning, _last_usage, _last_metadata
     _last_reasoning = reasoning
 
-    # capture token usage for cost tracking
-    _last_usage = result.get("usage", {})
+    # normalize usage to chat completions format
+    usage = result.get("usage", {})
+    _last_usage = {
+        "prompt_tokens": usage.get("input_tokens", 0),
+        "completion_tokens": usage.get("output_tokens", 0),
+        "total_tokens": usage.get("total_tokens", 0),
+        "cost_in_usd_ticks": usage.get("cost_in_usd_ticks", 0),
+    }
+
+    # capture metadata - multi-agent routing info
+    metadata = {
+        "api_format": "responses",
+        "model": result.get("model", model_name),
+        "status": result.get("status", ""),
+    }
+    if result.get("service_tier"):
+        metadata["service_tier"] = result["service_tier"]
+    if result.get("metadata"):
+        metadata["response_metadata"] = result["metadata"]
+    # check for any agent routing data in output items
+    for output_item in output_list:
+        for field in ("agent", "agent_name", "agent_id", "routing"):
+            if output_item.get(field):
+                metadata[field] = output_item[field]
+    _last_metadata = metadata
 
     return raw_content
