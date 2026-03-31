@@ -160,14 +160,14 @@ entries → should_use_realtime(entry, model_name)
 provider batch support (BATCH_PROVIDERS registry in batch.py):
   anthropic: active  (50% off, /anthropic/v1/messages/batches passthrough)
   google:    active  (50% off, vertex batch prediction via litellm)
+  xai/grok:  active  (50% off, xAI async batch API, direct to api.x.ai)
   openrouter: pending (on hold, red teaming approval)
-  grok:      pending (on hold, red teaming approval)
   deepseek:  none    (no native batch API, parallel real-time)
 
 batch routing:
   1. split entries: should_use_realtime() partitions into batch vs real-time
   2. run_batch() detects provider via get_provider_for_model()
-  3. dispatches to _run_anthropic_batch() or _run_google_batch()
+  3. dispatches to _run_anthropic_batch(), _run_google_batch(), or _run_xai_batch()
   4. poll for completion, parse results
   5. merge batch results into result set
   6. real-time entries process normally via adapter_fn()
@@ -245,6 +245,7 @@ no migration tool. SQLAlchemy `create_all()` on first run. schema changes requir
 | ANTHROPIC_API_KEY | server | Anthropic API (used by litellm proxy) |
 | DEEPSEEK_API_KEY | server | DeepSeek API (used by litellm proxy) |
 | GOOGLE_API_KEY | server | Google AI API (used by litellm proxy) |
+| XAI_API_KEY | server | xAI/Grok API (used by litellm proxy, direct batch) |
 | GROQ_API_KEY | server | Groq adapter auth |
 | OPENROUTER_API_KEY | server | OpenRouter adapter auth |
 | OPENAI_API_KEY | server | OpenAI adapter auth |
