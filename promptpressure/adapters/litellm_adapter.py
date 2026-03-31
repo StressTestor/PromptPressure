@@ -21,14 +21,20 @@ import httpx
 from promptpressure.rate_limit import AsyncRateLimiter
 
 
-# module-level storage for reasoning tokens from the last call.
-# the eval runner reads this after each generate_response() call.
+# module-level storage for reasoning tokens and usage from the last call.
+# the eval runner reads these after each generate_response() call.
 _last_reasoning = ""
+_last_usage = {}  # {"prompt_tokens": int, "completion_tokens": int, "total_tokens": int}
 
 
 def get_last_reasoning() -> str:
     """Return reasoning tokens from the most recent generate_response call."""
     return _last_reasoning
+
+
+def get_last_usage() -> dict:
+    """Return token usage from the most recent generate_response call."""
+    return _last_usage
 
 
 async def generate_response(prompt, model_name="claude-sonnet-4-6", config=None, messages=None):
@@ -99,7 +105,10 @@ async def generate_response(prompt, model_name="claude-sonnet-4-6", config=None,
             reasoning = think_match.group(1).strip()
             raw_content = re.sub(r"<think>.*?</think>", "", raw_content, flags=re.DOTALL).strip()
 
-    global _last_reasoning
+    global _last_reasoning, _last_usage
     _last_reasoning = reasoning
+
+    # capture token usage for cost tracking
+    _last_usage = result.get("usage", {})
 
     return raw_content

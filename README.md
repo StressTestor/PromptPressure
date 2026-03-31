@@ -216,6 +216,35 @@ both adapters check if the CLI tool is installed before running and give a clear
 
 ---
 
+## batch mode
+
+`--batch` routes eligible single-turn entries through the Anthropic batch API for 50% off input and output tokens. multi-turn sequences and deepseek R1 (reasoning token capture) automatically fall back to real-time.
+
+```bash
+# explicit batch mode
+promptpressure --batch --tier full --multi-config configs/config_litellm_sonnet.yaml
+
+# auto-enabled: litellm adapter + full/deep tier = batch mode by default
+promptpressure --tier full --multi-config configs/config_litellm_sonnet.yaml
+```
+
+batch mode requires the litellm adapter and proxy running. non-litellm adapters ignore the flag and run real-time.
+
+what gets batched vs real-time:
+
+| entry type | anthropic model | deepseek R1 | other models |
+|-----------|----------------|-------------|-------------|
+| single-turn | batch (50% off) | real-time (reasoning tokens) | real-time |
+| multi-turn | real-time (turns depend on responses) | real-time | real-time |
+
+cost tracking: litellm responses include token usage. the eval runner computes per-model cost via `litellm.completion_cost()` and saves to `outputs/<timestamp>/cost.json`.
+
+```json
+{"per_model": {"Claude Sonnet 4.6 (litellm)": {"cost_usd": 0.0234, "requests": 200}}, "total_cost_usd": 0.0234}
+```
+
+---
+
 ## post-analysis (automated grading)
 
 score responses automatically after evaluation:
@@ -261,6 +290,7 @@ options:
   --tier            run tier: smoke, quick, full, deep (default: quick)
   --smoke           shortcut for --tier smoke
   --quick           shortcut for --tier quick
+  --batch           batch mode: anthropic batch API for 50% off (litellm only)
   --post-analyze    post-eval grading via groq or openrouter
   --schema          dump JSON Schema for configuration
   --ci              machine-readable output + exit codes
