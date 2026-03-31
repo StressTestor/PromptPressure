@@ -32,6 +32,7 @@ missing=()
 [ -z "${ANTHROPIC_API_KEY:-}" ] && missing+=("ANTHROPIC_API_KEY")
 [ -z "${DEEPSEEK_API_KEY:-}" ] && missing+=("DEEPSEEK_API_KEY")
 [ -z "${GOOGLE_API_KEY:-}" ] && missing+=("GOOGLE_API_KEY")
+[ -z "${XAI_API_KEY:-}" ] && missing+=("XAI_API_KEY")
 
 if [ ${#missing[@]} -gt 0 ]; then
     echo "warning: missing env vars: ${missing[*]}"

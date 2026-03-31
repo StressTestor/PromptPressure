@@ -57,11 +57,11 @@ BATCH_PROVIDERS = {
         "method": "openai_batch_api",
         "note": "ON HOLD: pending red teaming approval from openrouter safety team",
     },
-    "grok": {
-        "status": "pending",
-        "discount": 1.0,
-        "method": "openai_batch_api",
-        "note": "ON HOLD: pending red teaming approval",
+    "xai": {
+        "status": "active",
+        "discount": 0.5,
+        "method": "xai_batch_api",
+        "note": "50% off via xAI async batch API (direct, not through openrouter)",
     },
     "deepseek": {
         "status": "none",
@@ -76,7 +76,8 @@ _MODEL_PROVIDER_MAP = {
     "claude": "anthropic",
     "anthropic": "anthropic",
     "gemini": "google",
-    "grok": "grok",
+    "grok": "xai",
+    "xai": "xai",
     "deepseek": "deepseek",
     "openrouter": "openrouter",
 }
@@ -229,8 +230,10 @@ async def run_batch(entries, model_name, config, litellm_endpoint=None):
         return await _run_anthropic_batch(entries, model_name, config, litellm_endpoint)
     elif method == "vertex_batch_prediction":
         return await _run_google_batch(entries, model_name, config, litellm_endpoint)
+    elif method == "xai_batch_api":
+        return await _run_xai_batch(entries, model_name, config, litellm_endpoint)
     elif method == "openai_batch_api":
-        # openrouter/grok use OpenAI-compatible batch. not wired yet.
+        # openrouter uses OpenAI-compatible batch. not wired yet (red teaming hold).
         print(f"  batch: {method} not implemented yet for {provider}. falling back to real-time.")
         return {}
     else:
@@ -486,6 +489,142 @@ async def _run_google_batch(entries, model_name, config, litellm_endpoint=None):
 
     except Exception as e:
         print(f"  google batch failed: {e}. falling back to real-time.")
+        return {}
+
+
+async def _run_xai_batch(entries, model_name, config, litellm_endpoint=None):
+    """Submit single-turn entries to xAI's async batch API.
+
+    xAI uses the OpenAI-compatible batch format: upload JSONL, create batch,
+    poll, download results. 50% discount on input+output tokens.
+    Routes direct to api.x.ai, not through OpenRouter.
+    """
+    api_key = os.getenv("XAI_API_KEY") or config.get("litellm_api_key", "")
+    base_url = "https://api.x.ai/v1"
+    temperature = config.get("temperature", 0.7)
+
+    # xAI model name mapping (litellm names -> xAI API model IDs)
+    xai_model_map = {
+        "grok-3": "grok-3",
+        "grok-3-mini": "grok-3-mini",
+    }
+    xai_model = xai_model_map.get(model_name, model_name)
+
+    # build JSONL batch requests in OpenAI format
+    jsonl_lines = []
+    for entry in entries:
+        prompt_text = entry.get("prompt") or entry.get("input", "")
+        request = {
+            "custom_id": entry.get("id", "unknown"),
+            "method": "POST",
+            "url": "/v1/chat/completions",
+            "body": {
+                "model": xai_model,
+                "temperature": temperature,
+                "messages": [{"role": "user", "content": prompt_text}],
+            }
+        }
+        jsonl_lines.append(json.dumps(request))
+
+    jsonl_content = "\n".join(jsonl_lines)
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            # upload batch file
+            import io
+            files = {"file": ("batch.jsonl", io.BytesIO(jsonl_content.encode()), "application/jsonl")}
+            upload_resp = await client.post(
+                f"{base_url}/files",
+                headers=headers,
+                files=files,
+                data={"purpose": "batch"},
+            )
+            upload_resp.raise_for_status()
+            file_id = upload_resp.json().get("id")
+
+            # create batch
+            batch_resp = await client.post(
+                f"{base_url}/batches",
+                headers={**headers, "Content-Type": "application/json"},
+                json={
+                    "input_file_id": file_id,
+                    "endpoint": "/v1/chat/completions",
+                    "completion_window": "24h",
+                },
+            )
+            batch_resp.raise_for_status()
+            batch = batch_resp.json()
+            batch_id = batch.get("id")
+
+        print(f"  xai batch submitted: {batch_id} ({len(entries)} requests, 50% off)")
+
+        # poll for completion
+        results = {}
+        max_wait = 3600
+        poll_interval = 10
+        elapsed = 0
+
+        async with httpx.AsyncClient(timeout=60) as client:
+            while elapsed < max_wait:
+                await asyncio.sleep(poll_interval)
+                elapsed += poll_interval
+
+                status_resp = await client.get(
+                    f"{base_url}/batches/{batch_id}",
+                    headers=headers,
+                )
+                status_resp.raise_for_status()
+                status = status_resp.json()
+
+                batch_status = status.get("status", "")
+                if batch_status == "completed":
+                    print(f"  batch {batch_id} completed ({elapsed}s)")
+                    output_file_id = status.get("output_file_id")
+                    if output_file_id:
+                        content_resp = await client.get(
+                            f"{base_url}/files/{output_file_id}/content",
+                            headers=headers,
+                        )
+                        content_resp.raise_for_status()
+
+                        for line in content_resp.text.strip().split("\n"):
+                            if not line.strip():
+                                continue
+                            try:
+                                item = json.loads(line)
+                                custom_id = item.get("custom_id", "")
+                                response = item.get("response", {})
+                                body = response.get("body", {})
+                                choices = body.get("choices", [])
+                                if choices:
+                                    text = choices[0].get("message", {}).get("content", "")
+                                    usage = body.get("usage", {})
+                                    results[custom_id] = {"content": text, "usage": usage}
+                                else:
+                                    results[custom_id] = {"content": "", "error": "no choices", "usage": {}}
+                            except json.JSONDecodeError:
+                                continue
+                    break
+                elif batch_status in ("failed", "cancelled", "expired"):
+                    print(f"  batch {batch_id} {batch_status} ({elapsed}s)")
+                    break
+
+                poll_interval = min(poll_interval * 1.5, 60)
+
+                completed = status.get("request_counts", {}).get("completed", 0)
+                total = status.get("request_counts", {}).get("total", len(entries))
+                print(f"  batch {batch_id}: {completed}/{total} done ({elapsed}s)")
+            else:
+                print(f"  batch {batch_id} timed out after {max_wait}s")
+
+        return results
+
+    except Exception as e:
+        print(f"  xai batch failed: {e}. falling back to real-time.")
         return {}
 
 

@@ -156,7 +156,7 @@ scripts/start-litellm.sh
 promptpressure --tier full --multi-config configs/config_litellm_sonnet.yaml
 ```
 
-available models via litellm: `claude-sonnet-4-6`, `claude-opus-4-6`, `deepseek-r1`, `deepseek-chat`, `gemini-2.5-flash`, `gemini-2.5-pro`. config lives in `litellm_config.yaml` at project root.
+available models via litellm: `claude-sonnet-4-6`, `claude-opus-4-6`, `deepseek-r1`, `deepseek-chat`, `gemini-2.5-flash`, `gemini-2.5-pro`, `grok-3`, `grok-3-mini`. config lives in `litellm_config.yaml` at project root.
 
 ### custom adapters
 
@@ -237,10 +237,10 @@ entries that always use real-time regardless of flags:
 - providers without batch support (deepseek-chat, groq, ollama)
 - providers on hold (openrouter, grok, pending red teaming approval)
 
-| entry type | anthropic | google/gemini | deepseek R1 | deepseek-chat | openrouter/grok |
-|-----------|-----------|---------------|-------------|---------------|-----------------|
-| single-turn | batch (50% off) | batch (50% off) | real-time | real-time | pending |
-| multi-turn | real-time | real-time | real-time | real-time | pending |
+| entry type | anthropic | google/gemini | xai/grok | deepseek R1 | deepseek-chat | openrouter |
+|-----------|-----------|---------------|----------|-------------|---------------|------------|
+| single-turn | batch (50% off) | batch (50% off) | batch (50% off) | real-time | real-time | pending |
+| multi-turn | real-time | real-time | real-time | real-time | real-time | pending |
 
 cost tracking: litellm responses include token usage. the eval runner computes per-model cost via `litellm.completion_cost()` and saves to `outputs/<timestamp>/cost.json`.
 

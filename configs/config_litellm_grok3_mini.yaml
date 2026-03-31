@@ -1,0 +1,13 @@
+# grok-3-mini via local litellm proxy (direct xAI API, not openrouter)
+# start proxy first: scripts/start-litellm.sh
+adapter: litellm
+model: grok-3-mini
+model_name: Grok 3 Mini (litellm)
+is_simulation: false
+dataset: evals_dataset.json
+output: eval_litellm_grok3_mini.csv
+output_dir: outputs
+litellm_endpoint: http://localhost:4000/v1/chat/completions
+temperature: 0.7
+tier: full
+use_timestamp_output_dir: true
