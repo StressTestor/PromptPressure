@@ -35,15 +35,22 @@ model_list:
       api_key: os.environ/GOOGLE_API_KEY
 
   # xai/grok — direct API, no openrouter (bypasses red teaming hold)
-  - model_name: grok-3
+  # aliases: grok-4.20-latest -> latest stable, grok-4.20-0309-* -> pinned
+  - model_name: grok-4.20-reasoning
     litellm_params:
-      model: xai/grok-3
+      model: xai/grok-4.20-0309-reasoning
       api_key: os.environ/XAI_API_KEY
       api_base: https://api.x.ai/v1
 
-  - model_name: grok-3-mini
+  - model_name: grok-4.20-multi-agent
     litellm_params:
-      model: xai/grok-3-mini
+      model: xai/grok-4.20-multi-agent-0309
+      api_key: os.environ/XAI_API_KEY
+      api_base: https://api.x.ai/v1
+
+  - model_name: grok-4.20-fast
+    litellm_params:
+      model: xai/grok-4-1-fast-reasoning
       api_key: os.environ/XAI_API_KEY
       api_base: https://api.x.ai/v1
 
