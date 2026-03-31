@@ -156,7 +156,7 @@ scripts/start-litellm.sh
 promptpressure --tier full --multi-config configs/config_litellm_sonnet.yaml
 ```
 
-available models via litellm: `claude-sonnet-4-6`, `claude-opus-4-6`, `deepseek-r1`, `deepseek-chat`, `gemini-2.5-flash`, `gemini-2.5-pro`, `grok-3`, `grok-3-mini`. config lives in `litellm_config.yaml` at project root.
+available models via litellm: `claude-sonnet-4-6`, `claude-opus-4-6`, `deepseek-r1`, `deepseek-chat`, `gemini-2.5-flash`, `gemini-2.5-pro`, `grok-4.20-reasoning`, `grok-4.20-multi-agent`, `grok-4.20-fast`. config lives in `litellm_config.yaml` at project root.
 
 ### custom adapters
 

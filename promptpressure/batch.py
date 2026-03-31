@@ -505,8 +505,9 @@ async def _run_xai_batch(entries, model_name, config, litellm_endpoint=None):
 
     # xAI model name mapping (litellm names -> xAI API model IDs)
     xai_model_map = {
-        "grok-3": "grok-3",
-        "grok-3-mini": "grok-3-mini",
+        "grok-4.20-reasoning": "grok-4.20-0309-reasoning",
+        "grok-4.20-multi-agent": "grok-4.20-multi-agent-0309",
+        "grok-4.20-fast": "grok-4-1-fast-reasoning",
     }
     xai_model = xai_model_map.get(model_name, model_name)
 
