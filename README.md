@@ -218,24 +218,29 @@ both adapters check if the CLI tool is installed before running and give a clear
 
 ## batch mode
 
-`--batch` routes eligible single-turn entries through the Anthropic batch API for 50% off input and output tokens. multi-turn sequences and deepseek R1 (reasoning token capture) automatically fall back to real-time.
+batch is the default for full and deep tier runs through the litellm adapter. single-turn entries route through the provider's batch API automatically (50% off for anthropic and google). real-time is the exception, not the default.
 
 ```bash
-# explicit batch mode
-promptpressure --batch --tier full --multi-config configs/config_litellm_sonnet.yaml
-
-# auto-enabled: litellm adapter + full/deep tier = batch mode by default
+# batch is automatic for full/deep + litellm
 promptpressure --tier full --multi-config configs/config_litellm_sonnet.yaml
+
+# force real-time for debugging
+promptpressure --no-batch --tier full --multi-config configs/config_litellm_sonnet.yaml
+
+# smoke/quick tiers always use real-time (no batch overhead for small runs)
+promptpressure --quick --multi-config configs/config_litellm_sonnet.yaml
 ```
 
-batch mode requires the litellm adapter and proxy running. non-litellm adapters ignore the flag and run real-time.
+entries that always use real-time regardless of flags:
+- multi-turn sequences (each turn depends on the previous response)
+- deepseek R1 (reasoning tokens don't survive batch responses)
+- providers without batch support (deepseek-chat, groq, ollama)
+- providers on hold (openrouter, grok, pending red teaming approval)
 
-what gets batched vs real-time:
-
-| entry type | anthropic model | deepseek R1 | other models |
-|-----------|----------------|-------------|-------------|
-| single-turn | batch (50% off) | real-time (reasoning tokens) | real-time |
-| multi-turn | real-time (turns depend on responses) | real-time | real-time |
+| entry type | anthropic | google/gemini | deepseek R1 | deepseek-chat | openrouter/grok |
+|-----------|-----------|---------------|-------------|---------------|-----------------|
+| single-turn | batch (50% off) | batch (50% off) | real-time | real-time | pending |
+| multi-turn | real-time | real-time | real-time | real-time | pending |
 
 cost tracking: litellm responses include token usage. the eval runner computes per-model cost via `litellm.completion_cost()` and saves to `outputs/<timestamp>/cost.json`.
 
@@ -290,7 +295,7 @@ options:
   --tier            run tier: smoke, quick, full, deep (default: quick)
   --smoke           shortcut for --tier smoke
   --quick           shortcut for --tier quick
-  --batch           batch mode: anthropic batch API for 50% off (litellm only)
+  --no-batch        force real-time (batch is default for litellm + full/deep)
   --post-analyze    post-eval grading via groq or openrouter
   --schema          dump JSON Schema for configuration
   --ci              machine-readable output + exit codes

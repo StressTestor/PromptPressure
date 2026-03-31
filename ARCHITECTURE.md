@@ -150,19 +150,27 @@ two independent grading functions (groq and openrouter) with identical logic:
 
 ### batch mode
 
-`--batch` flag activates batch processing for litellm adapter runs.
+batch is the default path. real-time is the exception.
 
 ```
-entries → should_use_batch(entry, model_name)
-  → True:  single-turn + not R1 → batch API (if anthropic) or parallel real-time
-  → False: multi-turn or R1    → always real-time
+entries → should_use_realtime(entry, model_name)
+  → True:  multi-turn, R1, unsupported/pending provider → real-time
+  → False: everything else → route through provider batch API
 
-anthropic batch path:
-  1. collect eligible entries
-  2. POST to litellm /anthropic/v1/messages/batches (passthrough)
-  3. poll batch status every 10-60s
-  4. fetch JSONL results on completion
-  5. merge into result set
+provider batch support (BATCH_PROVIDERS registry in batch.py):
+  anthropic: active  (50% off, /anthropic/v1/messages/batches passthrough)
+  google:    active  (50% off, vertex batch prediction via litellm)
+  openrouter: pending (on hold, red teaming approval)
+  grok:      pending (on hold, red teaming approval)
+  deepseek:  none    (no native batch API, parallel real-time)
+
+batch routing:
+  1. split entries: should_use_realtime() partitions into batch vs real-time
+  2. run_batch() detects provider via get_provider_for_model()
+  3. dispatches to _run_anthropic_batch() or _run_google_batch()
+  4. poll for completion, parse results
+  5. merge batch results into result set
+  6. real-time entries process normally via adapter_fn()
 
 cost tracking:
   litellm_adapter stores usage in _last_usage after each call
@@ -170,9 +178,8 @@ cost tracking:
   summary written to outputs/<timestamp>/cost.json
 ```
 
-auto-enabled for litellm adapter + full/deep tier. override with `--batch` flag.
-
-deepseek R1 always falls back to real-time because batch API responses don't reliably preserve reasoning_content/thinking fields.
+auto-enabled for litellm adapter + full/deep tier. `--no-batch` forces real-time.
+smoke/quick tiers always use real-time (no batch overhead for small runs).
 
 ### tier system
 
