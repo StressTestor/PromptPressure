@@ -1,0 +1,14 @@
+# drift eval via claude-code adapter (direct Anthropic API, no OpenRouter)
+# uses claude CLI in non-interactive mode
+adapter: claude-code
+model: sonnet
+model_name: Claude Sonnet (direct)
+is_simulation: false
+dataset: evals_dataset.json
+output: eval_drift_claude_sonnet.csv
+output_dir: outputs
+temperature: 0.7
+tier: full
+use_timestamp_output_dir: true
+# NOTE: openrouter-routed models (gpt-4o, deepseek r1, grok, mimo)
+# deferred pending red teaming approval from openrouter safety team
