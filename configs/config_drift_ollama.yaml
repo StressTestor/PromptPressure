@@ -1,0 +1,13 @@
+# drift eval via ollama adapter (local inference, no API restrictions)
+adapter: ollama
+model: llama3.3:70b
+model_name: Llama 3.3 70B (local)
+is_simulation: false
+dataset: evals_dataset.json
+output: eval_drift_ollama_llama.csv
+output_dir: outputs
+temperature: 0.7
+tier: full
+use_timestamp_output_dir: true
+# NOTE: openrouter-routed models (gpt-4o, deepseek r1, grok, mimo)
+# deferred pending red teaming approval from openrouter safety team
