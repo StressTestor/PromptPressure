@@ -9,3 +9,4 @@ venv/
 .venv/
 .env
 *.egg-info/
+ARCHITECTURE.md
