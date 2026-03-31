@@ -56,6 +56,10 @@ class Settings(BaseSettings):
         "https://openrouter.ai/api/v1/chat/completions",
         description="OpenRouter API endpoint"
     )
+    litellm_endpoint: str = Field(
+        "http://localhost:4000/v1/chat/completions",
+        description="LiteLLM proxy or direct provider endpoint"
+    )
 
     # Secrets (loaded from environment variables)
     groq_api_key: Optional[str] = Field(
@@ -65,6 +69,10 @@ class Settings(BaseSettings):
     openrouter_api_key: Optional[str] = Field(
         None,
         description="OpenRouter API key (from OPENROUTER_API_KEY environment variable or config)"
+    )
+    litellm_api_key: Optional[str] = Field(
+        None,
+        description="LiteLLM API key (optional, for proxy auth or direct provider override)"
     )
 
     @model_validator(mode='after')
