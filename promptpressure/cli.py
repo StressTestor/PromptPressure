@@ -484,6 +484,13 @@ async def post_analyze_groq(results, config, suffix="all_models"):
                 for tr in item["turn_responses"]:
                     prompt_section += f"<turn_{tr['turn']}_user>\n{tr['user']}\n</turn_{tr['turn']}_user>\n"
                     prompt_section += f"<turn_{tr['turn']}_response>\n{tr.get('assistant', '[NO RESPONSE]')}\n</turn_{tr['turn']}_response>\n\n"
+                # Inject per_turn_expectations as rubric hints if available
+                pte = item.get("per_turn_expectations")
+                if pte and item.get("multi_turn"):
+                    prompt_section += "\n<rubric_hints>\n"
+                    for exp in pte:
+                        prompt_section += f"Turn {exp['turn']} expected: {exp['expected']}\n"
+                    prompt_section += "</rubric_hints>\n\n"
                 response_section = ""
             else:
                 prompt_text = json.dumps(item["prompt"]) if isinstance(item["prompt"], list) else item["prompt"]
@@ -550,6 +557,13 @@ async def post_analyze_openrouter(results, config, suffix="all_models"):
                 for tr in item["turn_responses"]:
                     prompt_section += f"<turn_{tr['turn']}_user>\n{tr['user']}\n</turn_{tr['turn']}_user>\n"
                     prompt_section += f"<turn_{tr['turn']}_response>\n{tr.get('assistant', '[NO RESPONSE]')}\n</turn_{tr['turn']}_response>\n\n"
+                # Inject per_turn_expectations as rubric hints if available
+                pte = item.get("per_turn_expectations")
+                if pte and item.get("multi_turn"):
+                    prompt_section += "\n<rubric_hints>\n"
+                    for exp in pte:
+                        prompt_section += f"Turn {exp['turn']} expected: {exp['expected']}\n"
+                    prompt_section += "</rubric_hints>\n\n"
                 response_section = ""
             else:
                 prompt_text = json.dumps(item["prompt"]) if isinstance(item["prompt"], list) else item["prompt"]
