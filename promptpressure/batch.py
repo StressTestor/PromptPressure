@@ -11,8 +11,8 @@ is the exception, reserved for:
 Provider batch support:
 - anthropic: batch API via litellm passthrough, 50% off tokens
 - google/gemini: batch prediction API (supported, routed through litellm)
-- openrouter: batch-capable but ON HOLD pending red teaming approval
-- grok: batch-capable but ON HOLD pending red teaming approval
+- openrouter: no native batch API, uses parallel real-time via litellm
+- xai/grok: batch API via direct xAI endpoint, 50% off tokens
 - deepseek (non-R1): no native batch API, uses parallel real-time
 - groq/ollama/lmstudio: no batch API, real-time only
 
@@ -52,10 +52,10 @@ BATCH_PROVIDERS = {
         "note": "50% off via Gemini batch prediction API",
     },
     "openrouter": {
-        "status": "pending",
+        "status": "none",
         "discount": 1.0,
-        "method": "openai_batch_api",
-        "note": "ON HOLD: pending red teaming approval from openrouter safety team",
+        "method": None,
+        "note": "no native batch API. uses parallel real-time via litellm.",
     },
     "xai": {
         "status": "active",
@@ -79,6 +79,8 @@ _MODEL_PROVIDER_MAP = {
     "grok": "xai",
     "xai": "xai",
     "deepseek": "deepseek",
+    "gpt": "openrouter",
+    "llama": "openrouter",
     "openrouter": "openrouter",
 }
 
@@ -233,8 +235,7 @@ async def run_batch(entries, model_name, config, litellm_endpoint=None):
     elif method == "xai_batch_api":
         return await _run_xai_batch(entries, model_name, config, litellm_endpoint)
     elif method == "openai_batch_api":
-        # openrouter uses OpenAI-compatible batch. not wired yet (red teaming hold).
-        print(f"  batch: {method} not implemented yet for {provider}. falling back to real-time.")
+        print(f"  batch: {method} not implemented for {provider}. falling back to real-time.")
         return {}
     else:
         return {}

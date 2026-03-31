@@ -10,5 +10,4 @@ output_dir: outputs
 temperature: 0.7
 tier: full
 use_timestamp_output_dir: true
-# NOTE: openrouter-routed models (gpt-4o, deepseek r1, grok, mimo)
-# deferred pending red teaming approval from openrouter safety team
+# NOTE: for multi-provider evals, use litellm adapter instead
