@@ -39,5 +39,5 @@ def load_adapter(name):
     if name_lower in ("deepseek_r1", "deepseek"):
         return lambda text, config, messages=None: deepseek_r1_generate_response(text, config.get("model_name", "deepseek/deepseek-r1"), config, messages=messages)
     if name_lower == "litellm":
-        return lambda text, config, messages=None: litellm_generate_response(text, config.get("model_name", config.get("model", "claude-sonnet-4-6")), config, messages=messages)
+        return lambda text, config, messages=None: litellm_generate_response(text, config.get("model", config.get("model_name", "claude-sonnet-4-6")), config, messages=messages)
     raise ValueError(f"Unknown adapter: {name}")
