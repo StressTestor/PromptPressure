@@ -26,6 +26,7 @@ promptpressure/
   api.py                    # FastAPI server (optional, binds 127.0.0.1)
   database.py               # SQLAlchemy async models (Evaluation, Result, Metric, etc.)
   metrics.py                # MetricsCollector, aggregation, prometheus integration
+  batch.py                  # batch processing (Anthropic batch API, multi-model parallel, cost tracking)
   per_turn_metrics.py       # automated per-turn metrics (response_length_ratio)
   tier.py                   # filter_by_tier() — cumulative smoke/quick/full/deep
   rate_limit.py             # async token bucket rate limiter
@@ -104,7 +105,12 @@ registry.json               # plugin registry (official + community)
 YAML config → cli.py:main()
   → load dataset (evals_dataset.json)
   → filter_by_tier(prompts, tier)
-  → for each prompt:
+  → if batch_mode + litellm + anthropic model:
+    → split entries: batchable (single-turn, non-R1) vs real-time (multi-turn, R1)
+    → submit batchable to Anthropic batch API via litellm passthrough (50% off)
+    → poll for results, parse JSONL responses
+    → real-time entries process normally (below)
+  → for each prompt (real-time):
     single-turn:
       adapter_fn(prompt_text, config) → response string
     multi-turn:
@@ -112,6 +118,7 @@ YAML config → cli.py:main()
         → sequential turn loop: build messages[], call adapter, append response
         → compute_turn_metrics() after each turn (response_length_ratio)
         → per-turn timeout scaling (capped at 5x base)
+  → track per-request cost via litellm usage data → cost.json
   → collect metrics, write CSV + JSON + HTML/MD reports to outputs/
   → (optional) post_analyze_groq() or post_analyze_openrouter()
     → LLM-as-judge grades each response against eval_criteria booleans
@@ -140,6 +147,32 @@ two independent grading functions (groq and openrouter) with identical logic:
 3. if entry has per_turn_expectations, append as `<rubric_hints>` section
 4. LLM judge returns JSON with boolean scores per field
 5. `IMPORTANT` injection defense tag prevents model responses from influencing grades
+
+### batch mode
+
+`--batch` flag activates batch processing for litellm adapter runs.
+
+```
+entries → should_use_batch(entry, model_name)
+  → True:  single-turn + not R1 → batch API (if anthropic) or parallel real-time
+  → False: multi-turn or R1    → always real-time
+
+anthropic batch path:
+  1. collect eligible entries
+  2. POST to litellm /anthropic/v1/messages/batches (passthrough)
+  3. poll batch status every 10-60s
+  4. fetch JSONL results on completion
+  5. merge into result set
+
+cost tracking:
+  litellm_adapter stores usage in _last_usage after each call
+  cli.py reads it and feeds CostTracker.record_from_usage()
+  summary written to outputs/<timestamp>/cost.json
+```
+
+auto-enabled for litellm adapter + full/deep tier. override with `--batch` flag.
+
+deepseek R1 always falls back to real-time because batch API responses don't reliably preserve reasoning_content/thinking fields.
 
 ### tier system
 

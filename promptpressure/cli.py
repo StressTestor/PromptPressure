@@ -23,6 +23,7 @@ from promptpressure.reporting import ReportGenerator
 from promptpressure.database import init_db, get_db_session, Evaluation, Result, Metric, DATABASE_URL
 from promptpressure.per_turn_metrics import compute_turn_metrics
 from promptpressure.tier import filter_by_tier
+from promptpressure.batch import CostTracker, should_use_batch, is_anthropic_model, run_anthropic_batch
 
 def log_error(output_dir, error_msg):
     log_path = os.path.join(output_dir, "error.log")
@@ -30,9 +31,16 @@ def log_error(output_dir, error_msg):
     with open(log_path, "a", encoding="utf-8") as log_file:
         log_file.write(f"[{timestamp}] {error_msg}\n")
 
-async def run_evaluation_suite(config, adapter_name):
+async def run_evaluation_suite(config, adapter_name, batch_mode=False):
     """
     Runs the evaluation suite asynchronously.
+
+    Args:
+        config: Eval config dict.
+        adapter_name: Name of the adapter to use.
+        batch_mode: If True, route eligible entries through batch APIs
+                    (Anthropic batch for 50% discount, parallel dispatch).
+                    Multi-turn and R1 entries always use real-time.
     """
     # Load prompts
     dataset_file = config.get("dataset", "evals_dataset.json")
@@ -61,6 +69,7 @@ async def run_evaluation_suite(config, adapter_name):
     model_name = config.get("model_name") or adapter_name
     
     metrics_collector = MetricsCollector()
+    cost_tracker = CostTracker()
     collect_metrics = config.get("collect_metrics", True)
     concurrency = config.get("max_workers", 10) # Default to higher concurrency for async
 
@@ -154,14 +163,89 @@ async def run_evaluation_suite(config, adapter_name):
         plugin_scores = {}
 
         reasoning = ""
+
+        # Check if batch result exists for this entry
+        entry_id = entry.get("id")
+        if entry_id and entry_id in batch_results_map:
+            batch_result = batch_results_map[entry_id]
+            if "error" not in batch_result:
+                response = batch_result.get("content", "")
+                success = True
+                usage = batch_result.get("usage", {})
+                if usage:
+                    cost_tracker.record_from_usage(
+                        model_name,
+                        usage.get("input_tokens", usage.get("prompt_tokens", 0)),
+                        usage.get("output_tokens", usage.get("completion_tokens", 0)),
+                    )
+                duration = time.time() - start_time
+                if collect_metrics:
+                    metrics_collector.record_success(duration)
+                record_response(success=True, response_time=duration)
+                record_api_request(model=model_name, adapter=adapter_name, duration=duration, success=True)
+
+                result_data = {
+                    "id": entry_id,
+                    "prompt": prompt_text,
+                    "response": response,
+                    "model": model_name,
+                    "is_simulation": config.get("is_simulation", False),
+                    "eval_criteria": entry.get("eval_criteria"),
+                    "success": True,
+                    "error": None,
+                    "plugin_scores": {},
+                    "batch": True,
+                }
+
+                await emit_event("end_prompt", {"id": entry_id, "success": True, "latency": duration, "error": None})
+
+                async for session in get_db_session(engine):
+                    db_result = Result(
+                        evaluation_id=eval_id,
+                        prompt_id=str(entry_id),
+                        prompt_text=prompt_text,
+                        response_text=response,
+                        model=model_name,
+                        adapter=adapter_name,
+                        latency_ms=duration * 1000,
+                        success=True,
+                        error_message=None,
+                    )
+                    session.add(db_result)
+                    await session.commit()
+
+                return result_data
+            else:
+                # batch failed for this entry, fall through to real-time
+                pass
+
         try:
             response = await adapter_fn(prompt_text, config)
             success = True
 
-            # Capture reasoning tokens if adapter supports it (e.g. DeepSeek R1)
+            # Capture reasoning tokens if adapter supports it (e.g. DeepSeek R1, litellm)
             try:
                 from promptpressure.adapters.deepseek_r1_adapter import get_last_reasoning
                 reasoning = get_last_reasoning()
+            except (ImportError, Exception):
+                pass
+            if not reasoning:
+                try:
+                    from promptpressure.adapters.litellm_adapter import get_last_reasoning as litellm_reasoning
+                    reasoning = litellm_reasoning()
+                except (ImportError, Exception):
+                    pass
+
+            # Track cost from litellm usage data
+            try:
+                from promptpressure.adapters.litellm_adapter import get_last_usage
+                usage = get_last_usage()
+                if usage:
+                    cost_tracker.record_from_usage(
+                        model_name,
+                        usage.get("prompt_tokens", 0),
+                        usage.get("completion_tokens", 0),
+                    )
             except (ImportError, Exception):
                 pass
 
@@ -267,6 +351,25 @@ async def run_evaluation_suite(config, adapter_name):
                     turn_reasoning = get_last_reasoning()
                 except (ImportError, Exception):
                     pass
+                if not turn_reasoning:
+                    try:
+                        from promptpressure.adapters.litellm_adapter import get_last_reasoning as litellm_reasoning
+                        turn_reasoning = litellm_reasoning()
+                    except (ImportError, Exception):
+                        pass
+
+                # Track cost from litellm usage data
+                try:
+                    from promptpressure.adapters.litellm_adapter import get_last_usage
+                    turn_usage = get_last_usage()
+                    if turn_usage:
+                        cost_tracker.record_from_usage(
+                            model_name,
+                            turn_usage.get("prompt_tokens", 0),
+                            turn_usage.get("completion_tokens", 0),
+                        )
+                except (ImportError, Exception):
+                    pass
 
                 # Add assistant response to conversation history
                 conversation.append({"role": "assistant", "content": response_text})
@@ -370,6 +473,29 @@ async def run_evaluation_suite(config, adapter_name):
 
         return result_data
 
+    # Batch mode: route eligible single-turn entries through batch API
+    batch_results_map = {}  # entry_id -> {"content": str, "usage": dict}
+    if batch_mode and adapter_name == "litellm":
+        batch_entries = [e for e in prompts if should_use_batch(e, model_name)]
+        realtime_entries = [e for e in prompts if not should_use_batch(e, model_name)]
+
+        if batch_entries:
+            if is_anthropic_model(model_name):
+                print(f"batch mode: {len(batch_entries)} entries via anthropic batch API (50% off)")
+                print(f"real-time:  {len(realtime_entries)} entries (multi-turn/R1)")
+                try:
+                    batch_results_map = await run_anthropic_batch(batch_entries, model_name, config)
+                except Exception as e:
+                    print(f"  batch submission failed: {e}")
+                    print(f"  falling back to real-time for all entries")
+                    batch_results_map = {}
+            else:
+                print(f"batch mode: non-anthropic model, using parallel real-time dispatch")
+                # non-anthropic models don't have batch discount,
+                # use standard concurrent real-time processing
+    elif batch_mode:
+        print(f"batch mode: adapter '{adapter_name}' doesn't support batch. using real-time.")
+
     # Run tasks with progress bar
     pbar = tqdm(total=len(prompts), desc="evaluating", unit="prompt")
 
@@ -454,6 +580,23 @@ async def run_evaluation_suite(config, adapter_name):
     print(f"  avg lat:  {avg_latency:.2f}s")
     print(f"  elapsed:  {elapsed:.1f}s")
     print(f"  output:   {output_dir}")
+
+    # Cost summary (litellm adapter only)
+    cost_summary = cost_tracker.summary()
+    if cost_summary["total_cost_usd"] > 0:
+        print(f"  cost:     ${cost_summary['total_cost_usd']:.4f}")
+        for m, c in cost_summary["per_model"].items():
+            if c["cost_usd"] > 0:
+                print(f"            {m}: ${c['cost_usd']:.4f} ({c['requests']} reqs)")
+        # Save cost data to output
+        cost_path = os.path.join(output_dir, "cost.json")
+        with open(cost_path, "w", encoding="utf-8") as f:
+            json.dump(cost_summary, f, indent=2)
+
+    batch_count = sum(1 for r in results if r.get("batch"))
+    if batch_count > 0:
+        print(f"  batch:    {batch_count}/{total} via batch API")
+
     print(f"{'='*60}\n")
 
     return results, output_dir, metrics_collector
@@ -619,6 +762,10 @@ async def main_async():
                         default=None, help="Run tier (smoke/quick/full/deep). Default: quick")
     parser.add_argument("--smoke", action="store_true", help="Shortcut for --tier smoke")
     parser.add_argument("--quick", action="store_true", help="Shortcut for --tier quick")
+    parser.add_argument("--batch", action="store_true",
+                        help="Batch mode: route eligible single-turn entries through batch APIs "
+                             "(Anthropic batch for 50%% discount). Multi-turn and R1 use real-time. "
+                             "Requires litellm adapter.")
 
     # Plugin CLI commands
     subparsers = parser.add_subparsers(dest="command", help="Sub-commands")
@@ -697,7 +844,12 @@ async def main_async():
             config_dict["tier"] = tier_override
         last_config = config_dict
 
-        results, out_dir, metrics_collector = await run_evaluation_suite(config_dict, config_dict.get("adapter"))
+        # batch mode: explicit flag, or auto-enable for full/deep tier with litellm
+        use_batch = args.batch
+        if not use_batch and config_dict.get("adapter") == "litellm" and config_dict.get("tier") in ("full", "deep"):
+            use_batch = True
+
+        results, out_dir, metrics_collector = await run_evaluation_suite(config_dict, config_dict.get("adapter"), batch_mode=use_batch)
         all_results.extend(results)
         output_dirs.append(out_dir)
         if metrics_collector:
