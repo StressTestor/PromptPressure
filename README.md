@@ -156,7 +156,7 @@ scripts/start-litellm.sh
 promptpressure --tier full --multi-config configs/config_litellm_sonnet.yaml
 ```
 
-available models via litellm: `claude-sonnet-4-6`, `claude-opus-4-6`, `deepseek-r1`, `deepseek-chat`, `gemini-2.5-flash`, `gemini-2.5-pro`, `grok-4.20-reasoning`, `grok-4.20-multi-agent`, `grok-4.20-fast`. config lives in `litellm_config.yaml` at project root.
+available models via litellm: `claude-sonnet-4-6`, `claude-opus-4-6`, `deepseek-r1`, `deepseek-chat`, `gemini-2.5-flash`, `gemini-2.5-pro`, `grok-4.20-reasoning`, `grok-4.20-multi-agent`, `grok-4.20-fast`, `gpt-4o`, `gpt-4o-mini`, `llama-3.3-70b`. config lives in `litellm_config.yaml` at project root.
 
 ### custom adapters
 
@@ -235,12 +235,12 @@ entries that always use real-time regardless of flags:
 - multi-turn sequences (each turn depends on the previous response)
 - deepseek R1 (reasoning tokens don't survive batch responses)
 - providers without batch support (deepseek-chat, groq, ollama)
-- providers on hold (openrouter, grok, pending red teaming approval)
+- providers without batch API (openrouter, groq, ollama)
 
 | entry type | anthropic | google/gemini | xai/grok | deepseek R1 | deepseek-chat | openrouter |
 |-----------|-----------|---------------|----------|-------------|---------------|------------|
-| single-turn | batch (50% off) | batch (50% off) | batch (50% off) | real-time | real-time | pending |
-| multi-turn | real-time | real-time | real-time | real-time | real-time | pending |
+| single-turn | batch (50% off) | batch (50% off) | batch (50% off) | real-time | real-time | real-time |
+| multi-turn | real-time | real-time | real-time | real-time | real-time | real-time |
 
 cost tracking: litellm responses include token usage. the eval runner computes per-model cost via `litellm.completion_cost()` and saves to `outputs/<timestamp>/cost.json`.
 

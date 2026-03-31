@@ -34,7 +34,23 @@ model_list:
       model: gemini/gemini-2.5-pro-preview-06-05
       api_key: os.environ/GOOGLE_API_KEY
 
-  # xai/grok — direct API, no openrouter (bypasses red teaming hold)
+  # openrouter — multi-provider gateway
+  - model_name: gpt-4o
+    litellm_params:
+      model: openrouter/openai/gpt-4o
+      api_key: os.environ/OPENROUTER_API_KEY
+
+  - model_name: gpt-4o-mini
+    litellm_params:
+      model: openrouter/openai/gpt-4o-mini
+      api_key: os.environ/OPENROUTER_API_KEY
+
+  - model_name: llama-3.3-70b
+    litellm_params:
+      model: openrouter/meta-llama/llama-3.3-70b-instruct
+      api_key: os.environ/OPENROUTER_API_KEY
+
+  # xai/grok — direct API (batch-eligible)
   # aliases: grok-4.20-latest -> latest stable, grok-4.20-0309-* -> pinned
   - model_name: grok-4.20-reasoning
     litellm_params:
@@ -54,10 +70,8 @@ model_list:
       api_key: os.environ/XAI_API_KEY
       api_base: https://api.x.ai/v1
 
-# NOTE: openrouter is intentionally excluded.
-# pending red teaming approval from openrouter safety team.
-# do not add openrouter models until approval is confirmed.
-# xai/grok is routed direct to api.x.ai, not through openrouter.
+# openrouter models use real-time (no batch API discount).
+# xai/grok models route direct to api.x.ai for batch discount.
 
 general_settings:
   master_key: null
