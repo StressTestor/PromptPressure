@@ -1,18 +1,23 @@
 """
 Batch processing for PromptPressure eval runs.
 
-Two batch strategies:
-1. Anthropic batch API (via litellm passthrough): 50% off input/output tokens.
-   Async job submission, poll for results. Single-turn only.
-2. Multi-model parallel (via litellm batch_completion_models): same prompt
-   fired at all configured models simultaneously. Cuts wall time for
-   cross-model comparison runs.
+Batch is the default path for all single-turn eval prompts. Real-time
+is the exception, reserved for:
+- Multi-turn sequences (each turn depends on previous model response)
+- DeepSeek R1 (reasoning token preservation requires real-time)
+- Providers without batch API support
+- User override via --no-batch
 
-Multi-turn sequences always fall back to real-time because each turn
-depends on the previous model response.
+Provider batch support:
+- anthropic: batch API via litellm passthrough, 50% off tokens
+- google/gemini: batch prediction API (supported, routed through litellm)
+- openrouter: batch-capable but ON HOLD pending red teaming approval
+- grok: batch-capable but ON HOLD pending red teaming approval
+- deepseek (non-R1): no native batch API, uses parallel real-time
+- groq/ollama/lmstudio: no batch API, real-time only
 
-DeepSeek R1 falls back to real-time to preserve reasoning token capture.
-The batch API response format doesn't reliably surface thinking fields.
+Multi-model parallel via litellm.batch_completion_models fires the same
+prompt at all configured models simultaneously for comparison runs.
 """
 
 import os
@@ -27,6 +32,54 @@ try:
     LITELLM_AVAILABLE = True
 except ImportError:
     LITELLM_AVAILABLE = False
+
+
+# provider batch support registry.
+# status: "active" = wired and working, "pending" = capable but blocked,
+# "none" = no batch API available.
+# discount: cost multiplier vs real-time (0.5 = 50% off).
+BATCH_PROVIDERS = {
+    "anthropic": {
+        "status": "active",
+        "discount": 0.5,
+        "method": "anthropic_batch_api",
+        "note": "50% off via /anthropic/v1/messages/batches passthrough",
+    },
+    "google": {
+        "status": "active",
+        "discount": 0.5,
+        "method": "vertex_batch_prediction",
+        "note": "50% off via Gemini batch prediction API",
+    },
+    "openrouter": {
+        "status": "pending",
+        "discount": 1.0,
+        "method": "openai_batch_api",
+        "note": "ON HOLD: pending red teaming approval from openrouter safety team",
+    },
+    "grok": {
+        "status": "pending",
+        "discount": 1.0,
+        "method": "openai_batch_api",
+        "note": "ON HOLD: pending red teaming approval",
+    },
+    "deepseek": {
+        "status": "none",
+        "discount": 1.0,
+        "method": None,
+        "note": "no native batch API. uses parallel real-time.",
+    },
+}
+
+# model name -> provider mapping for batch routing
+_MODEL_PROVIDER_MAP = {
+    "claude": "anthropic",
+    "anthropic": "anthropic",
+    "gemini": "google",
+    "grok": "grok",
+    "deepseek": "deepseek",
+    "openrouter": "openrouter",
+}
 
 
 class CostTracker:
@@ -44,8 +97,6 @@ class CostTracker:
             self.costs[model] = {"input_cost": 0.0, "output_cost": 0.0, "total": 0.0, "requests": 0}
 
         try:
-            # litellm responses have _hidden_params with cost info
-            # or we can compute from usage tokens
             usage = None
             if hasattr(response, "usage"):
                 usage = response.usage
@@ -64,7 +115,6 @@ class CostTracker:
                 self.costs[model]["total"] += cost
                 self.costs[model]["requests"] += 1
         except Exception:
-            # cost tracking is best-effort. don't break the eval.
             self.costs[model]["requests"] += 1
 
     def record_from_usage(self, model, prompt_tokens, completion_tokens):
@@ -96,54 +146,105 @@ class CostTracker:
         }
 
 
-def should_use_batch(entry, model_name):
-    """Determine if an entry should use batch mode or fall back to real-time.
+def get_provider_for_model(model_name):
+    """Resolve which provider a model routes through.
 
-    Returns False (real-time) for:
+    Returns provider key string or None if unknown.
+    """
+    model_lower = (model_name or "").lower()
+    for prefix, provider in _MODEL_PROVIDER_MAP.items():
+        if prefix in model_lower:
+            return provider
+    return None
+
+
+def get_batch_support(model_name):
+    """Get batch support info for a model.
+
+    Returns (status, provider_info) tuple.
+    status is one of: "active", "pending", "none", "unknown".
+    """
+    provider = get_provider_for_model(model_name)
+    if provider and provider in BATCH_PROVIDERS:
+        info = BATCH_PROVIDERS[provider]
+        return info["status"], info
+    return "unknown", {"status": "unknown", "discount": 1.0, "method": None, "note": "provider not in registry"}
+
+
+def should_use_realtime(entry, model_name):
+    """Determine if an entry must use real-time instead of batch.
+
+    Real-time is the exception. Returns True (force real-time) for:
     - Multi-turn sequences (each turn depends on previous response)
     - DeepSeek R1 models (reasoning tokens don't survive batch)
+    - Providers without active batch support
+
+    Returns False (batch is fine) for everything else.
     """
-    # multi-turn: must be real-time
+    # multi-turn: always real-time. turns depend on previous responses.
     prompt = entry.get("prompt") or entry.get("input")
     if isinstance(prompt, list):
-        return False
+        return True
 
     # deepseek r1: reasoning tokens need real-time
     model_lower = (model_name or "").lower()
     if "deepseek" in model_lower and ("r1" in model_lower or "reasoner" in model_lower):
-        return False
+        return True
 
-    return True
+    # check provider batch support
+    status, _ = get_batch_support(model_name)
+    if status != "active":
+        return True
+
+    return False
 
 
-def is_anthropic_model(model_name):
-    """Check if a model routes through Anthropic (eligible for batch API discount)."""
-    model_lower = (model_name or "").lower()
-    return any(x in model_lower for x in ("claude", "anthropic"))
+async def run_batch(entries, model_name, config, litellm_endpoint=None):
+    """Route a batch of single-turn entries through the appropriate batch API.
 
-
-async def run_anthropic_batch(entries, model_name, config, litellm_endpoint=None):
-    """Submit single-turn entries to Anthropic batch API via litellm passthrough.
-
-    The litellm proxy exposes /anthropic/v1/messages/batches which passes
-    through to Anthropic's batch API. 50% discount on input+output tokens.
+    Detects provider from model name and dispatches to the correct
+    batch implementation. Falls back to real-time gracefully if the
+    provider's batch method isn't implemented yet.
 
     Args:
         entries: list of dataset entries (single-turn only)
-        model_name: model name as configured in litellm
+        model_name: model name as configured in litellm_config.yaml
         config: eval config dict
-        litellm_endpoint: base URL for litellm proxy (default localhost:4000)
+        litellm_endpoint: base URL for litellm proxy
 
     Returns:
         dict mapping entry_id -> {"content": str, "usage": dict}
     """
+    provider = get_provider_for_model(model_name)
+    status, info = get_batch_support(model_name)
+
+    if status != "active":
+        if status == "pending":
+            print(f"  batch: {provider} is batch-capable but on hold ({info['note']})")
+        return {}
+
+    method = info.get("method")
+
+    if method == "anthropic_batch_api":
+        return await _run_anthropic_batch(entries, model_name, config, litellm_endpoint)
+    elif method == "vertex_batch_prediction":
+        return await _run_google_batch(entries, model_name, config, litellm_endpoint)
+    elif method == "openai_batch_api":
+        # openrouter/grok use OpenAI-compatible batch. not wired yet.
+        print(f"  batch: {method} not implemented yet for {provider}. falling back to real-time.")
+        return {}
+    else:
+        return {}
+
+
+async def _run_anthropic_batch(entries, model_name, config, litellm_endpoint=None):
+    """Submit single-turn entries to Anthropic batch API via litellm passthrough.
+
+    50% discount on input+output tokens.
+    """
     base_url = litellm_endpoint or config.get("litellm_endpoint", "http://localhost:4000")
-    # strip /v1/chat/completions if present, we need the base
     base_url = base_url.split("/v1/")[0] if "/v1/" in base_url else base_url
 
-    # map litellm model names to anthropic model IDs for the passthrough
-    # litellm_config.yaml maps e.g. "claude-sonnet-4-6" -> "anthropic/claude-sonnet-4-6-20250514"
-    # the batch API needs the raw anthropic model ID
     anthropic_model_map = {
         "claude-sonnet-4-6": "claude-sonnet-4-6-20250514",
         "claude-opus-4-6": "claude-opus-4-6-20250514",
@@ -153,7 +254,6 @@ async def run_anthropic_batch(entries, model_name, config, litellm_endpoint=None
     temperature = config.get("temperature", 0.7)
     api_key = os.getenv("ANTHROPIC_API_KEY") or config.get("litellm_api_key", "")
 
-    # build batch requests in Anthropic's format
     requests = []
     for entry in entries:
         prompt_text = entry.get("prompt") or entry.get("input", "")
@@ -167,7 +267,6 @@ async def run_anthropic_batch(entries, model_name, config, litellm_endpoint=None
             }
         })
 
-    # submit batch via litellm's anthropic passthrough
     headers = {
         "x-api-key": api_key,
         "anthropic-version": "2023-06-01",
@@ -175,7 +274,6 @@ async def run_anthropic_batch(entries, model_name, config, litellm_endpoint=None
     }
 
     async with httpx.AsyncClient(timeout=60) as client:
-        # create batch
         resp = await client.post(
             f"{base_url}/anthropic/v1/messages/batches",
             headers=headers,
@@ -185,13 +283,11 @@ async def run_anthropic_batch(entries, model_name, config, litellm_endpoint=None
         batch = resp.json()
         batch_id = batch["id"]
 
-    print(f"  anthropic batch submitted: {batch_id} ({len(requests)} requests)")
+    print(f"  anthropic batch submitted: {batch_id} ({len(requests)} requests, 50% off)")
 
-    # poll for completion. anthropic batch can take up to 24h but
-    # typical small batches complete in minutes.
     results = {}
-    max_wait = 3600  # 1 hour max
-    poll_interval = 10  # start at 10s
+    max_wait = 3600
+    poll_interval = 10
     elapsed = 0
 
     async with httpx.AsyncClient(timeout=60) as client:
@@ -211,7 +307,6 @@ async def run_anthropic_batch(entries, model_name, config, litellm_endpoint=None
                 print(f"  batch {batch_id} completed ({elapsed}s)")
                 break
 
-            # back off polling interval
             poll_interval = min(poll_interval * 1.5, 60)
 
             counts = status.get("request_counts", {})
@@ -222,14 +317,12 @@ async def run_anthropic_batch(entries, model_name, config, litellm_endpoint=None
             print(f"  batch {batch_id} timed out after {max_wait}s")
             return results
 
-        # fetch results
         results_resp = await client.get(
             f"{base_url}/anthropic/v1/messages/batches/{batch_id}/results",
             headers=headers,
         )
         results_resp.raise_for_status()
 
-    # parse JSONL results
     for line in results_resp.text.strip().split("\n"):
         if not line.strip():
             continue
@@ -264,6 +357,138 @@ async def run_anthropic_batch(entries, model_name, config, litellm_endpoint=None
     return results
 
 
+async def _run_google_batch(entries, model_name, config, litellm_endpoint=None):
+    """Submit single-turn entries to Google Gemini batch prediction API.
+
+    Routes through litellm proxy. 50% discount on input+output tokens.
+    """
+    base_url = litellm_endpoint or config.get("litellm_endpoint", "http://localhost:4000")
+    base_url = base_url.split("/v1/")[0] if "/v1/" in base_url else base_url
+
+    api_key = os.getenv("GOOGLE_API_KEY") or config.get("litellm_api_key", "")
+    temperature = config.get("temperature", 0.7)
+
+    # google batch prediction uses the same OpenAI-compatible batch format
+    # via litellm's batch endpoint
+    requests = []
+    for entry in entries:
+        prompt_text = entry.get("prompt") or entry.get("input", "")
+        requests.append({
+            "custom_id": entry.get("id", "unknown"),
+            "body": {
+                "model": model_name,
+                "temperature": temperature,
+                "messages": [{"role": "user", "content": prompt_text}],
+            }
+        })
+
+    headers = {
+        "Content-Type": "application/json",
+    }
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    # use litellm's OpenAI-compatible batch endpoint
+    # litellm translates this to the provider's native batch format
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            # write requests to a JSONL string for the batch file
+            jsonl_content = "\n".join(json.dumps(r) for r in requests)
+
+            # upload the batch file
+            import io
+            files = {"file": ("batch.jsonl", io.BytesIO(jsonl_content.encode()), "application/jsonl")}
+            upload_resp = await client.post(
+                f"{base_url}/v1/files",
+                headers={"Authorization": headers.get("Authorization", "")},
+                files=files,
+                data={"purpose": "batch"},
+            )
+            upload_resp.raise_for_status()
+            file_id = upload_resp.json().get("id")
+
+            # create the batch
+            batch_resp = await client.post(
+                f"{base_url}/v1/batches",
+                headers=headers,
+                json={
+                    "input_file_id": file_id,
+                    "endpoint": "/v1/chat/completions",
+                    "completion_window": "24h",
+                },
+            )
+            batch_resp.raise_for_status()
+            batch = batch_resp.json()
+            batch_id = batch.get("id")
+
+        print(f"  google batch submitted: {batch_id} ({len(requests)} requests, 50% off)")
+
+        # poll for completion
+        results = {}
+        max_wait = 3600
+        poll_interval = 10
+        elapsed = 0
+
+        async with httpx.AsyncClient(timeout=60) as client:
+            while elapsed < max_wait:
+                await asyncio.sleep(poll_interval)
+                elapsed += poll_interval
+
+                status_resp = await client.get(
+                    f"{base_url}/v1/batches/{batch_id}",
+                    headers=headers,
+                )
+                status_resp.raise_for_status()
+                status = status_resp.json()
+
+                batch_status = status.get("status", "")
+                if batch_status == "completed":
+                    print(f"  batch {batch_id} completed ({elapsed}s)")
+                    output_file_id = status.get("output_file_id")
+                    if output_file_id:
+                        content_resp = await client.get(
+                            f"{base_url}/v1/files/{output_file_id}/content",
+                            headers=headers,
+                        )
+                        content_resp.raise_for_status()
+
+                        for line in content_resp.text.strip().split("\n"):
+                            if not line.strip():
+                                continue
+                            try:
+                                item = json.loads(line)
+                                custom_id = item.get("custom_id", "")
+                                response = item.get("response", {})
+                                body = response.get("body", {})
+                                choices = body.get("choices", [])
+                                if choices:
+                                    text = choices[0].get("message", {}).get("content", "")
+                                    usage = body.get("usage", {})
+                                    results[custom_id] = {"content": text, "usage": usage}
+                                else:
+                                    results[custom_id] = {"content": "", "error": "no choices", "usage": {}}
+                            except json.JSONDecodeError:
+                                continue
+                    break
+                elif batch_status in ("failed", "cancelled", "expired"):
+                    print(f"  batch {batch_id} {batch_status} ({elapsed}s)")
+                    break
+
+                poll_interval = min(poll_interval * 1.5, 60)
+
+                completed = status.get("request_counts", {}).get("completed", 0)
+                total = status.get("request_counts", {}).get("total", len(requests))
+                print(f"  batch {batch_id}: {completed}/{total} done ({elapsed}s)")
+            else:
+                print(f"  batch {batch_id} timed out after {max_wait}s")
+
+        return results
+
+    except Exception as e:
+        print(f"  google batch failed: {e}. falling back to real-time.")
+        return {}
+
+
 async def run_multi_model_parallel(prompt_text, models, config):
     """Fire the same prompt at multiple models in parallel via litellm.
 
@@ -285,7 +510,6 @@ async def run_multi_model_parallel(prompt_text, models, config):
     base_url = endpoint.split("/v1/")[0] if "/v1/" in endpoint else endpoint
     api_key = config.get("litellm_api_key") or os.getenv("LITELLM_API_KEY", "")
 
-    # configure litellm to use the local proxy
     messages = [{"role": "user", "content": prompt_text}]
     temperature = config.get("temperature", 0.7)
 

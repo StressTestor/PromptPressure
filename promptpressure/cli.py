@@ -23,7 +23,7 @@ from promptpressure.reporting import ReportGenerator
 from promptpressure.database import init_db, get_db_session, Evaluation, Result, Metric, DATABASE_URL
 from promptpressure.per_turn_metrics import compute_turn_metrics
 from promptpressure.tier import filter_by_tier
-from promptpressure.batch import CostTracker, should_use_batch, is_anthropic_model, run_anthropic_batch
+from promptpressure.batch import CostTracker, should_use_realtime, run_batch
 
 def log_error(output_dir, error_msg):
     log_path = os.path.join(output_dir, "error.log")
@@ -473,28 +473,29 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False):
 
         return result_data
 
-    # Batch mode: route eligible single-turn entries through batch API
+    # Batch routing: batch is the default path for single-turn entries.
+    # Real-time is the exception (multi-turn, R1, unsupported providers, --no-batch).
     batch_results_map = {}  # entry_id -> {"content": str, "usage": dict}
     if batch_mode and adapter_name == "litellm":
-        batch_entries = [e for e in prompts if should_use_batch(e, model_name)]
-        realtime_entries = [e for e in prompts if not should_use_batch(e, model_name)]
+        realtime_entries = [e for e in prompts if should_use_realtime(e, model_name)]
+        batch_entries = [e for e in prompts if not should_use_realtime(e, model_name)]
 
         if batch_entries:
-            if is_anthropic_model(model_name):
-                print(f"batch mode: {len(batch_entries)} entries via anthropic batch API (50% off)")
-                print(f"real-time:  {len(realtime_entries)} entries (multi-turn/R1)")
-                try:
-                    batch_results_map = await run_anthropic_batch(batch_entries, model_name, config)
-                except Exception as e:
-                    print(f"  batch submission failed: {e}")
-                    print(f"  falling back to real-time for all entries")
-                    batch_results_map = {}
-            else:
-                print(f"batch mode: non-anthropic model, using parallel real-time dispatch")
-                # non-anthropic models don't have batch discount,
-                # use standard concurrent real-time processing
+            print(f"batch: {len(batch_entries)} entries via batch API")
+            if realtime_entries:
+                print(f"real-time: {len(realtime_entries)} entries (multi-turn/R1/unsupported)")
+            try:
+                batch_results_map = await run_batch(batch_entries, model_name, config)
+                if not batch_results_map:
+                    print(f"  batch returned empty (provider may not support batch). using real-time.")
+            except Exception as e:
+                print(f"  batch submission failed: {e}")
+                print(f"  falling back to real-time for all entries")
+                batch_results_map = {}
+        elif realtime_entries:
+            print(f"real-time: all {len(realtime_entries)} entries require real-time (multi-turn/R1)")
     elif batch_mode:
-        print(f"batch mode: adapter '{adapter_name}' doesn't support batch. using real-time.")
+        print(f"batch: adapter '{adapter_name}' doesn't support batch routing. using real-time.")
 
     # Run tasks with progress bar
     pbar = tqdm(total=len(prompts), desc="evaluating", unit="prompt")
@@ -762,10 +763,9 @@ async def main_async():
                         default=None, help="Run tier (smoke/quick/full/deep). Default: quick")
     parser.add_argument("--smoke", action="store_true", help="Shortcut for --tier smoke")
     parser.add_argument("--quick", action="store_true", help="Shortcut for --tier quick")
-    parser.add_argument("--batch", action="store_true",
-                        help="Batch mode: route eligible single-turn entries through batch APIs "
-                             "(Anthropic batch for 50%% discount). Multi-turn and R1 use real-time. "
-                             "Requires litellm adapter.")
+    parser.add_argument("--no-batch", action="store_true",
+                        help="Force real-time mode for all entries. Disables batch API routing "
+                             "(default for smoke/quick tiers, litellm adapter auto-batches on full/deep).")
 
     # Plugin CLI commands
     subparsers = parser.add_subparsers(dest="command", help="Sub-commands")
@@ -844,10 +844,14 @@ async def main_async():
             config_dict["tier"] = tier_override
         last_config = config_dict
 
-        # batch mode: explicit flag, or auto-enable for full/deep tier with litellm
-        use_batch = args.batch
-        if not use_batch and config_dict.get("adapter") == "litellm" and config_dict.get("tier") in ("full", "deep"):
+        # batch is the default for litellm + full/deep tier.
+        # --no-batch forces real-time. smoke/quick use real-time (fast, no batch overhead).
+        if args.no_batch:
+            use_batch = False
+        elif config_dict.get("adapter") == "litellm" and config_dict.get("tier") in ("full", "deep"):
             use_batch = True
+        else:
+            use_batch = False
 
         results, out_dir, metrics_collector = await run_evaluation_suite(config_dict, config_dict.get("adapter"), batch_mode=use_batch)
         all_results.extend(results)
