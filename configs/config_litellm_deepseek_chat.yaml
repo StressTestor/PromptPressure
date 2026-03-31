@@ -1,0 +1,13 @@
+# deepseek-chat via local litellm proxy (direct deepseek API, not openrouter)
+# start proxy first: scripts/start-litellm.sh
+adapter: litellm
+model: deepseek-chat
+model_name: DeepSeek Chat (litellm)
+is_simulation: false
+dataset: evals_dataset.json
+output: eval_litellm_deepseek_chat.csv
+output_dir: outputs
+litellm_endpoint: http://localhost:4000/v1/chat/completions
+temperature: 0.7
+tier: full
+use_timestamp_output_dir: true

@@ -10,6 +10,7 @@ from .ollama_adapter import generate_response as ollama_generate_response
 from .claude_code_adapter import generate_response as claude_code_generate_response
 from .opencode_adapter import generate_response as opencode_generate_response
 from .deepseek_r1_adapter import generate_response as deepseek_r1_generate_response
+from .litellm_adapter import generate_response as litellm_generate_response
 
 
 def load_adapter(name):
@@ -37,4 +38,6 @@ def load_adapter(name):
         return lambda text, config, messages=None: opencode_generate_response(text, config.get("model", ""), config, messages=messages)
     if name_lower in ("deepseek_r1", "deepseek"):
         return lambda text, config, messages=None: deepseek_r1_generate_response(text, config.get("model_name", "deepseek/deepseek-r1"), config, messages=messages)
+    if name_lower == "litellm":
+        return lambda text, config, messages=None: litellm_generate_response(text, config.get("model_name", config.get("model", "claude-sonnet-4-6")), config, messages=messages)
     raise ValueError(f"Unknown adapter: {name}")

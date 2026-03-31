@@ -121,6 +121,7 @@ promptpressure --dataset archive/adversarial/refusal_sensitivity.json --multi-co
 
 | adapter | type | what you need |
 |---------|------|---------------|
+| **LiteLLM** | proxy | litellm proxy on localhost:4000 (routes to any provider) |
 | **Claude Code** | CLI | claude CLI installed (subscription) |
 | **OpenCode Zen** | CLI | opencode CLI installed (subscription) |
 | OpenRouter | cloud | `OPENROUTER_API_KEY` |
@@ -132,9 +133,30 @@ promptpressure --dataset archive/adversarial/refusal_sensitivity.json --multi-co
 
 switch adapters with one line in your config YAML:
 ```yaml
-adapter: openrouter
-model_name: openai/gpt-oss-20b:free
+adapter: litellm
+model: claude-sonnet-4-6
 ```
+
+### litellm proxy (recommended for multi-provider evals)
+
+litellm runs as a local proxy on localhost:4000, routing to anthropic, deepseek, and google APIs through a single OpenAI-compatible endpoint. one adapter, any model. reasoning token capture works for deepseek-r1 through the proxy.
+
+```bash
+pip install 'litellm[proxy]'
+
+# set your provider keys
+export ANTHROPIC_API_KEY=sk-ant-...
+export DEEPSEEK_API_KEY=sk-...
+export GOOGLE_API_KEY=AI...
+
+# start the proxy
+scripts/start-litellm.sh
+
+# run eval
+promptpressure --tier full --multi-config configs/config_litellm_sonnet.yaml
+```
+
+available models via litellm: `claude-sonnet-4-6`, `claude-opus-4-6`, `deepseek-r1`, `deepseek-chat`, `gemini-2.5-flash`, `gemini-2.5-pro`. config lives in `litellm_config.yaml` at project root.
 
 ### custom adapters
 

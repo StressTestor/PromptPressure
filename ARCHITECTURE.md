@@ -39,7 +39,8 @@ promptpressure/
     lmstudio_adapter.py     # LM Studio (local inference)
     claude_code_adapter.py  # claude CLI non-interactive mode (zero-cost)
     opencode_adapter.py     # opencode CLI non-interactive mode (zero-cost)
-    deepseek_r1_adapter.py  # DeepSeek R1 with reasoning token capture
+    deepseek_r1_adapter.py  # DeepSeek R1 with reasoning token capture (via OpenRouter)
+    litellm_adapter.py      # LiteLLM local proxy (routes to any provider)
     mock_adapter.py         # synthetic responses for CI
   plugins/
     __init__.py
@@ -54,11 +55,15 @@ promptpressure/
 
 configs/                    # YAML eval configs, one per model/adapter combination
   config_mock.yaml          # CI/test config
+  config_litellm_*.yaml     # litellm proxy configs (sonnet, opus, deepseek, gemini)
   config_drift_claude_code.yaml   # drift eval via direct Anthropic API
   config_drift_ollama.yaml        # drift eval via local Ollama
   config_openrouter_*.yaml        # various OpenRouter model configs
   config_claude_code.yaml         # Claude Code adapter configs
   ...
+
+litellm_config.yaml         # litellm proxy config (anthropic, deepseek, google)
+scripts/start-litellm.sh    # start litellm proxy on localhost:4000
 
 evals_dataset.json          # 200 behavioral eval entries (190 legacy + 10 multi-turn drift)
 schema.json                 # JSON Schema 2020-12 for dataset entry format
@@ -197,9 +202,13 @@ no migration tool. SQLAlchemy `create_all()` on first run. schema changes requir
 
 | variable | scope | purpose |
 |----------|-------|---------|
+| ANTHROPIC_API_KEY | server | Anthropic API (used by litellm proxy) |
+| DEEPSEEK_API_KEY | server | DeepSeek API (used by litellm proxy) |
+| GOOGLE_API_KEY | server | Google AI API (used by litellm proxy) |
 | GROQ_API_KEY | server | Groq adapter auth |
 | OPENROUTER_API_KEY | server | OpenRouter adapter auth |
 | OPENAI_API_KEY | server | OpenAI adapter auth |
+| LITELLM_API_KEY | server | litellm proxy master key (optional, only if proxy has auth) |
 | OLLAMA_BASE_URL | server | override Ollama endpoint (default: localhost:11434) |
 | LM_STUDIO_BASE_URL | server | override LM Studio endpoint (default: 127.0.0.1:1234) |
 | DATABASE_URL | server | database connection (default: SQLite) |
@@ -223,7 +232,11 @@ local CLI tool. no hosted deployment. `pip install -e .` from the repo.
 
 | service | purpose | auth method |
 |---------|---------|-------------|
-| OpenRouter | cloud model inference (GPT-4o, Grok, etc.) | API key |
+| LiteLLM proxy | local gateway to multiple providers (localhost:4000) | optional master key |
+| Anthropic | Claude models (via litellm) | API key |
+| DeepSeek | DeepSeek R1/Chat (via litellm) | API key |
+| Google AI | Gemini models (via litellm) | API key |
+| OpenRouter | cloud model inference (on hold, pending red teaming approval) | API key |
 | Groq | cloud model inference | API key |
 | OpenAI | cloud model inference | API key |
 | Ollama | local model inference | none (localhost) |
@@ -245,8 +258,12 @@ local CLI tool. no hosted deployment. `pip install -e .` from the repo.
 # dev
 pip install -e ".[dev]"
 
+# start litellm proxy (routes to anthropic, deepseek, google)
+scripts/start-litellm.sh
+
 # run eval (CLI)
 promptpressure --quick --multi-config configs/config_mock.yaml
+promptpressure --tier full --multi-config configs/config_litellm_sonnet.yaml
 promptpressure --tier full --multi-config configs/config_drift_claude_code.yaml
 promptpressure --tier full --multi-config configs/config_drift_ollama.yaml
 
@@ -270,5 +287,5 @@ python3 -c "import json, jsonschema; s=json.load(open('schema.json')); d=json.lo
 
 ---
 
-*last updated: 2026-03-31 by claude*
+*last updated: 2026-03-31 by claude (litellm proxy integration)*
 *this file is maintained per the architecture-doc skill. update on every structural change.*
