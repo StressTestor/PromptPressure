@@ -1,6 +1,6 @@
 # claude sonnet 4.6 — direct Anthropic API
 adapter: litellm
-model: claude-sonnet-4-6-20250514
+model: claude-4-sonnet-20250514
 model_name: Claude Sonnet 4.6
 is_simulation: false
 dataset: evals_dataset.json
