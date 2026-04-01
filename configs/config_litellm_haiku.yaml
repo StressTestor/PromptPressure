@@ -1,10 +1,10 @@
-# claude sonnet 4.6 — direct Anthropic API
+# claude haiku 4.5 — direct Anthropic API
 adapter: litellm
-model: claude-sonnet-4-6-20250514
-model_name: Claude Sonnet 4.6
+model: claude-haiku-4-5-20251001
+model_name: Claude Haiku 4.5
 is_simulation: false
 dataset: evals_dataset.json
-output: eval_sonnet.csv
+output: eval_haiku.csv
 output_dir: outputs
 litellm_endpoint: https://api.anthropic.com/v1/messages
 litellm_api_key: ""
@@ -12,4 +12,4 @@ temperature: 0.7
 tier: full
 use_timestamp_output_dir: true
 max_workers: 3
-timeout: 120
+timeout: 60
