@@ -1,13 +1,15 @@
-# gemini 2.5 pro via local litellm proxy
-# start proxy first: scripts/start-litellm.sh
+# gemini 3 pro preview — direct Google AI API (no proxy needed)
 adapter: litellm
-model: gemini-2.5-pro
-model_name: Gemini 2.5 Pro (litellm)
+model: gemini-3-pro-preview
+model_name: Gemini 3 Pro
 is_simulation: false
 dataset: evals_dataset.json
-output: eval_litellm_gemini_pro.csv
+output: eval_gemini3_pro.csv
 output_dir: outputs
-litellm_endpoint: http://localhost:4000/v1/chat/completions
+litellm_endpoint: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions
+litellm_api_key: ""
 temperature: 0.7
 tier: full
 use_timestamp_output_dir: true
+max_workers: 3
+timeout: 60
