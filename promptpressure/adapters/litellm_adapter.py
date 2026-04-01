@@ -118,11 +118,15 @@ async def generate_response(prompt, model_name="claude-sonnet-4-6", config=None,
     else:
         await AsyncRateLimiter.wait("litellm_cloud", rate=5.0, burst=10.0)
 
-    # detect if we need the Responses API (grok multi-agent uses /v1/responses)
+    # detect API format from endpoint
     use_responses_api = "multi-agent" in model_name.lower() or "multi_agent" in model_name.lower()
+    use_anthropic_api = "api.anthropic.com" in endpoint
 
     if use_responses_api:
         return await _call_responses_api(endpoint, headers, model_name, data, timeout_s)
+
+    if use_anthropic_api:
+        return await _call_anthropic_api(endpoint, api_key, model_name, data, timeout_s, config)
 
     async with httpx.AsyncClient(timeout=timeout_s) as client:
         response = await client.post(endpoint, headers=headers, json=data)
@@ -165,6 +169,71 @@ async def generate_response(prompt, model_name="claude-sonnet-4-6", config=None,
         if val:
             metadata[field] = val
     _last_metadata = metadata
+
+    return raw_content
+
+
+async def _call_anthropic_api(endpoint, api_key, model_name, chat_data, timeout_s, config):
+    """Call Anthropic's native Messages API.
+
+    Translates from OpenAI chat format to Anthropic's format and back.
+    Handles x-api-key auth, content blocks, and usage metadata.
+    """
+    # Anthropic uses x-api-key header, not Bearer
+    headers = {
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+    }
+
+    # translate to Anthropic format
+    messages = chat_data.get("messages", [])
+    anthropic_data = {
+        "model": model_name,
+        "max_tokens": 4096,
+        "temperature": chat_data.get("temperature", 0.7),
+        "messages": messages,
+    }
+
+    # ensure endpoint points at /v1/messages
+    if not endpoint.endswith("/messages"):
+        endpoint = endpoint.rstrip("/")
+        if "/v1" in endpoint:
+            endpoint = endpoint.split("/v1")[0] + "/v1/messages"
+        else:
+            endpoint += "/v1/messages"
+
+    async with httpx.AsyncClient(timeout=timeout_s) as client:
+        response = await client.post(endpoint, headers=headers, json=anthropic_data)
+        response.raise_for_status()
+        result = response.json()
+
+    # extract text from Anthropic's content blocks
+    content_blocks = result.get("content", [])
+    raw_content = ""
+    reasoning = ""
+    for block in content_blocks:
+        if block.get("type") == "text":
+            raw_content += block.get("text", "")
+        elif block.get("type") == "thinking":
+            reasoning += block.get("thinking", "")
+
+    global _last_reasoning, _last_usage, _last_metadata
+    _last_reasoning = reasoning
+
+    # normalize usage to OpenAI format
+    usage = result.get("usage", {})
+    _last_usage = {
+        "prompt_tokens": usage.get("input_tokens", 0),
+        "completion_tokens": usage.get("output_tokens", 0),
+        "total_tokens": usage.get("input_tokens", 0) + usage.get("output_tokens", 0),
+    }
+
+    _last_metadata = {
+        "api_format": "anthropic_messages",
+        "model": result.get("model", model_name),
+        "stop_reason": result.get("stop_reason", ""),
+    }
 
     return raw_content
 
