@@ -236,8 +236,8 @@ async def _run_anthropic_batch(entries, model_name, config):
 
     # resolve model ID
     anthropic_model_map = {
-        "claude-sonnet-4-6": "claude-sonnet-4-6-20250514",
-        "claude-opus-4-6": "claude-opus-4-6-20250514",
+        "claude-sonnet-4-6": "claude-4-sonnet-20250514",
+        "claude-opus-4-6": "claude-4-opus-20250514",
     }
     anthropic_model = anthropic_model_map.get(model_name, model_name)
     temperature = config.get("temperature", 0.7)
