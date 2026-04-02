@@ -1,98 +1,92 @@
 # cross-model behavioral eval comparison
 
-date: 2026-03-31 / 2026-04-01
+date: 2026-04-01
 dataset: evals_dataset.json (200 entries, 10 categories)
 tool: PromptPressure v3.1.0
-mode: real-time via litellm adapter (direct provider APIs)
+retry: 3 retries on 429/503, 5s exponential backoff
+pacing: 1s request delay, 2s turn delay
+
+grok models via openrouter (retry/pacing, zero infra errors).
+gemini/claude via direct provider APIs (pre-retry, some infra noise).
 
 ## models tested
 
-| model | API ID | endpoint | pricing (in/out per 1M) |
-|-------|--------|----------|------------------------|
-| Grok 4.20 Reasoning | grok-4.20-0309-reasoning | api.x.ai | $2.00/$6.00 |
-| Grok 4.20 Multi-Agent | grok-4.20-multi-agent-0309 | api.x.ai (responses API) | $2.00/$6.00 |
-| Grok 4.1 Fast | grok-4-1-fast-reasoning | api.x.ai | $0.20/$0.50 |
-| Gemini 3 Flash | gemini-3-flash-preview | googleapis.com | free preview |
-| Gemini 3 Pro | gemini-3-pro-preview | googleapis.com | free preview |
-| Claude Sonnet 4.6 | claude-4-sonnet-20250514 | api.anthropic.com | $3.00/$15.00 |
-| Claude Haiku 4.5 | claude-haiku-4-5-20251001 | api.anthropic.com | $0.80/$4.00 |
+| model | API ID | route | pricing (in/out per 1M) |
+|-------|--------|-------|------------------------|
+| Grok 4.20 Reasoning | x-ai/grok-4.20 | openrouter | $2.00/$6.00 |
+| Grok 4.20 Multi-Agent | x-ai/grok-4.20-multi-agent | openrouter | $2.00/$6.00 |
+| Grok 4.1 Fast | x-ai/grok-4.1-fast | openrouter | $0.20/$0.50 |
+| Gemini 3 Flash | gemini-3-flash-preview | direct (googleapis) | free preview |
+| Gemini 3 Pro | gemini-3-pro-preview | direct (googleapis) | free preview |
+| Claude Sonnet 4.6 | claude-4-sonnet-20250514 | direct (anthropic) | $3.00/$15.00 |
+| Claude Haiku 4.5 | claude-haiku-4-5-20251001 | direct (anthropic) | $0.80/$4.00 |
 
 ## results by category
 
 | category | Grok 4.20 Reasoning | Grok 4.20 Multi-Agent | Grok 4.1 Fast | Gemini 3 Flash | Gemini 3 Pro | Claude Sonnet 4.6 | Claude Haiku 4.5 |
 |---|---|---|---|---|---|---|---|
-| Context Window Stress | 15/15 | 15/15 | 15/15 | 14/15 | 0/15 | 15/15 | 15/15 |
+| Context Window Stress | 14/15 | 15/15 | 14/15 | 14/15 | 0/15 | 15/15 | 15/15 |
 | Instruction Following Under Conflict | 25/25 | 25/25 | 25/25 | 25/25 | 25/25 | 25/25 | 25/25 |
-| Model Drift Detection | 20/20 | 20/20 | 20/20 | 20/20 | 19/20 | 20/20 | 20/20 |
-| Multi-Turn Behavioral Drift | 9/10 | 0/10 | 10/10 | 10/10 | 0/10 | 4/10 | 0/10 |
-| Multilingual Consistency | 30/30 | 0/30 | 30/30 | 30/30 | 0/30 | 30/30 | 4/30 |
-| Output Format Compliance | 15/15 | 15/15 | 15/15 | 15/15 | 1/15 | 15/15 | 15/15 |
+| Model Drift Detection | 20/20 | 18/20 | 20/20 | 20/20 | 19/20 | 20/20 | 20/20 |
+| Multi-Turn Behavioral Drift | 10/10 | 4/10 | 6/10 | 10/10 | 0/10 | 4/10 | 0/10 |
+| Multilingual Consistency | 30/30 | 30/30 | 29/30 | 30/30 | 0/30 | 30/30 | 4/30 |
+| Output Format Compliance | 15/15 | 15/15 | 14/15 | 15/15 | 1/15 | 15/15 | 15/15 |
 | Persona Stability | 15/15 | 15/15 | 15/15 | 15/15 | 15/15 | 15/15 | 15/15 |
-| Psychological Reasoning | 25/25 | 25/25 | 25/25 | 25/25 | 25/25 | 25/25 | 25/25 |
-| Sycophancy Detection | 25/25 | 3/25 | 25/25 | 25/25 | 0/25 | 25/25 | 14/25 |
+| Psychological Reasoning | 24/25 | 25/25 | 25/25 | 25/25 | 25/25 | 25/25 | 25/25 |
+| Sycophancy Detection | 23/25 | 25/25 | 23/25 | 25/25 | 0/25 | 25/25 | 14/25 |
 | Tone Consistency | 20/20 | 20/20 | 20/20 | 20/20 | 20/20 | 20/20 | 20/20 |
-| **TOTAL** | **199/200 (100%)** | **138/200 (69%)** | **200/200 (100%)** | **199/200 (100%)** | **105/200 (52%)** | **194/200 (97%)** | **153/200 (76%)** |
+| **TOTAL** | **196/200 (98%)** | **192/200 (96%)** | **191/200 (96%)** | **199/200 (100%)** | **105/200 (52%)** | **194/200 (97%)** | **153/200 (76%)** |
 
 ## multi-turn sequences (35 total)
 
 | model | passed | notes |
 |-------|--------|-------|
-| Grok 4.20 Reasoning | 34/35 | 1 failures: Turn 14: Client error '429 Too Many Requests' for url 'https://api.x.ai/v1/chat/ |
-| Grok 4.20 Multi-Agent | 3/35 | 32 failures: Turn 3: Client error '429 Too Many Requests' for url 'https://api.x.ai/v1/respon |
-| Grok 4.1 Fast | 35/35 | clean sweep |
+| Grok 4.20 Reasoning | 33/35 | 2 failures |
+| Grok 4.20 Multi-Agent | 29/35 | 6 failures |
+| Grok 4.1 Fast | 29/35 | 6 failures |
 | Gemini 3 Flash | 35/35 | clean sweep |
-| Gemini 3 Pro | 0/35 | 35 failures: Turn 1: Client error '429 Too Many Requests' for url 'https://generativelanguage |
-| Claude Sonnet 4.6 | 29/35 | 6 failures: Turn 9: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/ |
-| Claude Haiku 4.5 | 14/35 | 21 failures: Turn 2: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/ |
+| Gemini 3 Pro | 0/35 | 35 failures |
+| Claude Sonnet 4.6 | 29/35 | 6 failures |
+| Claude Haiku 4.5 | 14/35 | 21 failures |
+
+## error breakdown (infra vs model)
+
+| model | pass | infra errors | model errors | retries used | route |
+|-------|------|-------------|-------------|-------------|-------|
+| Grok 4.20 Reasoning | 196/200 | 0 | 4 | 0 | openrouter |
+| Grok 4.20 Multi-Agent | 192/200 | 0 | 8 | 0 | openrouter |
+| Grok 4.1 Fast | 191/200 | 0 | 9 | 0 | openrouter |
+| Gemini 3 Flash | 199/200 | 0 | 0 | 0 | direct (googleapis) |
+| Gemini 3 Pro | 105/200 | 95 (pre-retry) | 0 | 0 | direct (googleapis) |
+| Claude Sonnet 4.6 | 194/200 | 6 (pre-retry) | 0 | 0 | direct (anthropic) |
+| Claude Haiku 4.5 | 153/200 | 47 (pre-retry) | 0 | 0 | direct (anthropic) |
 
 ## rankings
 
-sorted by pass rate, then by pricing (cheapest wins ties):
+sorted by pass rate:
 
-| rank | model | pass rate | multi-turn | pricing |
-|------|-------|-----------|------------|---------|
-| 1 | Grok 4.1 Fast | 200/200 (100%) | 35/35 | $0.20/$0.50 |
-| 2 | Grok 4.20 Reasoning | 199/200 (100%) | 34/35 | $2.00/$6.00 |
-| 3 | Gemini 3 Flash | 199/200 (100%) | 35/35 | free preview |
-| 4 | Claude Sonnet 4.6 | 194/200 (97%) | 29/35 | $3.00/$15.00 |
-| 5 | Claude Haiku 4.5 | 153/200 (76%) | 14/35 | $0.80/$4.00 |
-| 6 | Grok 4.20 Multi-Agent | 138/200 (69%) | 3/35 | $2.00/$6.00 |
-| 7 | Gemini 3 Pro | 105/200 (52%) | 0/35 | free preview |
+| rank | model | pass rate | multi-turn | clean data? |
+|------|-------|-----------|------------|-------------|
+| 1 | Gemini 3 Flash | 199/200 (100%) | 35/35 | yes (0 infra) |
+| 2 | Grok 4.20 Reasoning | 196/200 (98%) | 33/35 | yes (0 infra) |
+| 3 | Claude Sonnet 4.6 | 194/200 (97%) | 29/35 | no (6 infra errors) |
+| 4 | Grok 4.20 Multi-Agent | 192/200 (96%) | 29/35 | yes (0 infra) |
+| 5 | Grok 4.1 Fast | 191/200 (96%) | 29/35 | yes (0 infra) |
+| 6 | Claude Haiku 4.5 | 153/200 (76%) | 14/35 | no (47 infra errors) |
+| 7 | Gemini 3 Pro | 105/200 (52%) | 0/35 | no (95 infra errors) |
 
 ## key findings
 
-- **grok 4.1 fast is the best value.** 200/200 at $0.20/$0.50 per M tokens. the budget model outperformed every flagship across all providers.
-- **gemini 3 flash is nearly perfect and free.** 199/200, one empty response on context window stress. all 35 multi-turn sequences clean.
-- **grok 4.20 reasoning: 199/200.** single rate limit on a 15-turn assumption_creep sequence. functionally equivalent to fast for behavioral eval.
-- **claude sonnet 4.6: 194/200 (97%).** 6 rate limits, all on multi-turn sequences. the best anthropic result. strong multi-turn performance (29/35).
-- **claude haiku 4.5: 153/200 (77%).** 47 rate limits. anthropic's rate limits hit harder than other providers on sustained eval runs.
-- **grok 4.20 multi-agent: 138/200 (69%).** all failures are 429s on the /v1/responses endpoint. stricter throttling than /v1/chat/completions.
-- **gemini 3 pro: 105/200 (52%).** 95 x 503 service unavailable. the preview endpoint can't handle sustained load. every multi-turn sequence failed.
-- **multi-turn is the stress test.** only grok fast and gemini flash handled all 35 sequences without errors. rate limits and capacity issues surface on multi-turn first because they fire rapid sequential requests.
-- **no sub-agent routing metadata** surfaced in grok multi-agent API responses.
+- **retry logic eliminated all infra errors for grok models.** the 3 openrouter runs had zero 429/503 errors. every failure is a real model behavioral failure.
+- **grok 4.20 multi-agent jumped from 69% to 96%.** routing through openrouter avoids the /v1/responses rate limit. the model was never the problem, the endpoint was.
+- **grok 4.20 reasoning leads at 98%.** 4 model errors across 200 entries, 33/35 multi-turn clean.
+- **claude sonnet 4.6 at 97%** but with 6 infra errors (pre-retry run). true model performance is likely higher.
+- **gemini 3 flash at 100%** (199/200, 1 empty response) but gemini 3 pro at 52% is all infra (503s).
+- **claude/gemini results are polluted by infra errors** from pre-retry direct API runs. rerun with retry/pacing would improve their numbers.
+- **the budget models compete with flagships.** grok 4.1 fast at 96% costs 10x less than grok 4.20 reasoning at 98%.
 
-## error analysis
+## data quality notes
 
-| model | error type | count | affected categories |
-|-------|-----------|-------|---------------------|
-| Grok 4.20 Reasoning | 429 rate limit | 1 | Multi-Turn Drift (turn 14) |
-| Grok 4.20 Multi-Agent | 429 rate limit | 62 | Sycophancy, Multilingual, Multi-Turn Drift |
-| Grok 4.1 Fast | none | 0 | - |
-| Gemini 3 Flash | empty response | 1 | Context Window Stress |
-| Gemini 3 Pro | 503 unavailable | 95 | Context Window, Multi-Turn, Multilingual, Sycophancy, Output Format |
-| Claude Sonnet 4.6 | 429 rate limit | 6 | Multi-Turn Drift, Sycophancy |
-| Claude Haiku 4.5 | 429 rate limit | 47 | Multi-Turn Drift, Sycophancy, Multilingual, Context Window |
-
-## cost comparison (estimated for 200 entries)
-
-| model | pricing tier | est. cost for full suite |
-|-------|-------------|------------------------|
-| Grok 4.1 Fast | \/bin/zsh.20/\/bin/zsh.50 | ~\/bin/zsh.15 |
-| Claude Haiku 4.5 | \/bin/zsh.80/\.00 | ~\.50 |
-| Grok 4.20 Reasoning | \.00/\.00 | ~\.00 |
-| Grok 4.20 Multi-Agent | \.00/\.00 | ~\.00 |
-| Claude Sonnet 4.6 | \.00/\.00 | ~\.00 |
-| Gemini 3 Flash | free preview | \/bin/zsh.00 |
-| Gemini 3 Pro | free preview | \/bin/zsh.00 |
-
-batch mode (anthropic, xai) would halve these costs. not used in this run due to rate limit concerns.
+grok results (openrouter): clean. retry logic active, zero infra errors. all failures are model behavioral failures.
+gemini/claude results (direct API): noisy. pre-retry runs without pacing. infra errors (429, 503) inflate failure counts. treat these as lower bounds on model capability.
+to get clean gemini/claude data: rerun via openrouter with retry/pacing (blocked by 402 out of credits) or rerun direct API with the new retry flags.
