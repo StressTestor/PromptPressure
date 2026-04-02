@@ -3,7 +3,7 @@ import pytest
 import asyncio
 from unittest.mock import AsyncMock, patch
 
-from promptpressure.cli import _is_retryable, _classify_error, _retry_with_backoff
+from promptpressure.resilience import is_retryable as _is_retryable, classify_error as _classify_error, retry_with_backoff as _retry_with_backoff
 
 
 # ---------------------------------------------------------------------------
