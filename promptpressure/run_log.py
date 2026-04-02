@@ -70,4 +70,5 @@ class RunLog:
 
     @property
     def path(self):
+        """Path to the run.jsonl log file."""
         return self._path
