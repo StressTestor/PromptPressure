@@ -24,6 +24,7 @@ from promptpressure.database import init_db, get_db_session, Evaluation, Result,
 from promptpressure.per_turn_metrics import compute_turn_metrics
 from promptpressure.tier import filter_by_tier
 from promptpressure.batch import CostTracker, should_use_realtime, run_batch
+from promptpressure.run_log import RunLog
 
 def _is_retryable(error):
     """Check if an error is a transient infrastructure failure worth retrying."""
@@ -100,6 +101,7 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") if use_ts else None
     output_dir = os.path.join(base_output_dir, ts) if ts else base_output_dir
     os.makedirs(output_dir, exist_ok=True)
+    run_log = RunLog(output_dir)
 
     results = []
     adapter_fn = load_adapter(adapter_name)
@@ -251,6 +253,10 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
                     session.add(db_result)
                     await session.commit()
 
+                run_log.record(
+                    entry_id=entry_id, model=model_name, provider=adapter_name,
+                    latency=duration, tokens=usage, retries=0, batch=True,
+                )
                 return result_data
             else:
                 # batch failed for this entry, fall through to real-time
@@ -373,6 +379,11 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
             session.add(db_result)
             await session.commit()
 
+        run_log.record(
+            entry_id=entry.get("id"), model=model_name, provider=adapter_name,
+            latency=duration, retries=retries_used,
+            error=error_msg, error_type=error_type,
+        )
         return result_data
 
     async def _process_multi_turn(entry, turns):
@@ -547,6 +558,11 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
             session.add(db_result)
             await session.commit()
 
+        run_log.record(
+            entry_id=entry.get("id"), model=model_name, provider=adapter_name,
+            latency=duration, error=error_msg, error_type=seq_error_type,
+            multi_turn=True, turns=len(turn_responses),
+        )
         return result_data
 
     # Batch routing: batch is the default path for single-turn entries.
@@ -633,6 +649,7 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
 
     record_evaluation_end(time.time() - eval_start_time)
     await engine.dispose()
+    run_log.close()
 
     # Terminal summary
     total = len(results)
