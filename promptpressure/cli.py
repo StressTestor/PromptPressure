@@ -25,22 +25,59 @@ from promptpressure.per_turn_metrics import compute_turn_metrics
 from promptpressure.tier import filter_by_tier
 from promptpressure.batch import CostTracker, should_use_realtime, run_batch
 
+def _is_retryable(error):
+    """Check if an error is a transient infrastructure failure worth retrying."""
+    err_str = str(error).lower()
+    return any(code in err_str for code in ("429", "503", "529", "overloaded", "rate limit", "too many requests", "service unavailable"))
+
+
+def _classify_error(error):
+    """Classify an error as 'infra' (retryable/transient) or 'model' (real failure)."""
+    if _is_retryable(error):
+        return "infra"
+    err_str = str(error).lower()
+    if any(x in err_str for x in ("timeout", "timed out", "connection", "empty response")):
+        return "infra"
+    return "model"
+
+
+async def _retry_with_backoff(fn, max_retries=3, base_delay=5.0, max_delay=60.0):
+    """Call fn with exponential backoff on retryable errors.
+
+    Returns (result, retries_used) on success.
+    Raises the last exception if all retries exhausted.
+    """
+    last_error = None
+    for attempt in range(max_retries + 1):
+        try:
+            result = await fn()
+            return result, attempt
+        except Exception as e:
+            last_error = e
+            if not _is_retryable(e) or attempt == max_retries:
+                raise
+            delay = min(base_delay * (2 ** attempt), max_delay)
+            await asyncio.sleep(delay)
+    raise last_error
+
+
 def log_error(output_dir, error_msg):
     log_path = os.path.join(output_dir, "error.log")
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with open(log_path, "a", encoding="utf-8") as log_file:
         log_file.write(f"[{timestamp}] {error_msg}\n")
 
-async def run_evaluation_suite(config, adapter_name, batch_mode=False):
+async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_delay=1.0, turn_delay=2.0, max_retries=3):
     """
     Runs the evaluation suite asynchronously.
 
     Args:
         config: Eval config dict.
         adapter_name: Name of the adapter to use.
-        batch_mode: If True, route eligible entries through batch APIs
-                    (Anthropic batch for 50% discount, parallel dispatch).
-                    Multi-turn and R1 entries always use real-time.
+        batch_mode: If True, route eligible entries through batch APIs.
+        request_delay: Seconds between requests to avoid rate limits.
+        turn_delay: Seconds between turns in multi-turn sequences.
+        max_retries: Max retries on retryable errors (429, 503).
     """
     # Load prompts
     dataset_file = config.get("dataset", "evals_dataset.json")
@@ -219,8 +256,20 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False):
                 # batch failed for this entry, fall through to real-time
                 pass
 
+        retries_used = 0
+        error_type = None
+
         try:
-            response = await adapter_fn(prompt_text, config)
+            # request delay to space out calls
+            if request_delay > 0:
+                await asyncio.sleep(request_delay)
+
+            async def _do_call():
+                return await adapter_fn(prompt_text, config)
+
+            response, retries_used = await _retry_with_backoff(
+                _do_call, max_retries=max_retries, base_delay=5.0, max_delay=60.0
+            )
             success = True
 
             # Capture reasoning tokens if adapter supports it (e.g. DeepSeek R1, litellm)
@@ -267,6 +316,7 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False):
 
         except Exception as e:
             error_msg = str(e)
+            error_type = _classify_error(e)
             if collect_metrics:
                 metrics_collector.record_error(e, prompt_text)
 
@@ -285,6 +335,8 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False):
             "eval_criteria": entry.get("eval_criteria"),
             "success": success,
             "error": error_msg,
+            "error_type": error_type,
+            "retries": retries_used,
             "plugin_scores": plugin_scores
         }
         if reasoning:
@@ -333,6 +385,7 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False):
         turn_responses = []
         success = True
         error_msg = None
+        mt_error_type = None
 
         for turn_idx, turn in enumerate(turns, 1):
             turn_content = turn.get("content", "")
@@ -341,17 +394,27 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False):
             # Add user turn to conversation history
             conversation.append({"role": turn_role, "content": turn_content})
 
+            # turn delay to avoid rate limits on rapid sequential requests
+            if turn_idx > 1 and turn_delay > 0:
+                await asyncio.sleep(turn_delay)
+
             try:
                 # Timeout scales with turn count, capped at 5x base
                 base_timeout = config.get("timeout", 60)
                 turn_timeout = min(base_timeout * (1 + turn_idx * 0.5), base_timeout * 5)
-                try:
-                    response_text = await asyncio.wait_for(
-                        adapter_fn(turn_content, config, messages=list(conversation)),
-                        timeout=turn_timeout
-                    )
-                except asyncio.TimeoutError as e:
-                    raise TimeoutError(f"Turn {turn_idx} timed out after {turn_timeout:.0f}s") from e
+
+                async def _do_turn_call():
+                    try:
+                        return await asyncio.wait_for(
+                            adapter_fn(turn_content, config, messages=list(conversation)),
+                            timeout=turn_timeout
+                        )
+                    except asyncio.TimeoutError as e:
+                        raise TimeoutError(f"Turn {turn_idx} timed out after {turn_timeout:.0f}s") from e
+
+                response_text, turn_retries = await _retry_with_backoff(
+                    _do_turn_call, max_retries=max_retries, base_delay=5.0, max_delay=60.0
+                )
 
                 # Capture reasoning tokens if available
                 turn_reasoning = ""
@@ -405,17 +468,20 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False):
 
             except Exception as e:
                 error_msg = f"Turn {turn_idx}: {str(e)}"
+                mt_error_type = _classify_error(e)
                 success = False
                 turn_responses.append({
                     "turn": turn_idx,
                     "user": turn_content,
                     "assistant": None,
-                    "error": str(e)
+                    "error": str(e),
+                    "error_type": mt_error_type,
                 })
                 log_error(output_dir, f"Error on '{entry.get('id')}' turn {turn_idx}: {e}")
                 break
 
         duration = time.time() - start_time
+        seq_error_type = mt_error_type if not success else None
 
         if success:
             if collect_metrics:
@@ -452,6 +518,7 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False):
             "eval_criteria": entry.get("eval_criteria"),
             "success": success,
             "error": error_msg,
+            "error_type": seq_error_type,
             "multi_turn": True,
             "plugin_scores": {},
             "per_turn_metrics": per_turn_metrics,
@@ -570,9 +637,11 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False):
     # Terminal summary
     total = len(results)
     passed = sum(1 for r in results if r.get("success"))
-    failed = sum(1 for r in results if not r.get("success") and not r.get("error"))
-    errors = sum(1 for r in results if r.get("error"))
     refused = sum(1 for r in results if r.get("success") and r.get("eval_criteria", {}).get("refusal") is True)
+    infra_errors = sum(1 for r in results if r.get("error_type") == "infra")
+    model_errors = sum(1 for r in results if r.get("error_type") == "model")
+    other_errors = sum(1 for r in results if r.get("error") and not r.get("error_type"))
+    total_retries = sum(r.get("retries", 0) for r in results)
     multi_turn_count = sum(1 for r in results if r.get("multi_turn"))
     total_turns = sum(r.get("turns_total", 0) for r in results if r.get("multi_turn"))
     avg_latency = metrics_collector.metrics.get("average_response_time", 0)
@@ -586,7 +655,18 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False):
         print(f"  multi:    {multi_turn_count} sequences ({total_turns} turns)")
     print(f"  pass:     {passed - refused}")
     print(f"  refuse:   {refused}")
-    print(f"  error:    {errors}")
+    if infra_errors or model_errors or other_errors:
+        print(f"  errors:   {infra_errors + model_errors + other_errors}")
+        if infra_errors:
+            print(f"    infra:  {infra_errors} (rate limit/timeout/503, after {max_retries} retries)")
+        if model_errors:
+            print(f"    model:  {model_errors} (real failures)")
+        if other_errors:
+            print(f"    other:  {other_errors}")
+    else:
+        print(f"  errors:   0")
+    if total_retries:
+        print(f"  retries:  {total_retries} total")
     print(f"  avg lat:  {avg_latency:.2f}s")
     print(f"  elapsed:  {elapsed:.1f}s")
     print(f"  output:   {output_dir}")
@@ -775,6 +855,12 @@ async def main_async():
     parser.add_argument("--no-batch", action="store_true",
                         help="Force real-time mode for all entries. Disables batch API routing "
                              "(default for smoke/quick tiers, litellm adapter auto-batches on full/deep).")
+    parser.add_argument("--request-delay", type=float, default=1.0,
+                        help="Seconds between requests to avoid rate limits (default: 1.0)")
+    parser.add_argument("--turn-delay", type=float, default=2.0,
+                        help="Seconds between turns in multi-turn sequences (default: 2.0)")
+    parser.add_argument("--max-retries", type=int, default=3,
+                        help="Max retries on rate limit (429/503) errors with exponential backoff (default: 3)")
 
     # Plugin CLI commands
     subparsers = parser.add_subparsers(dest="command", help="Sub-commands")
@@ -862,7 +948,13 @@ async def main_async():
         else:
             use_batch = False
 
-        results, out_dir, metrics_collector = await run_evaluation_suite(config_dict, config_dict.get("adapter"), batch_mode=use_batch)
+        results, out_dir, metrics_collector = await run_evaluation_suite(
+            config_dict, config_dict.get("adapter"),
+            batch_mode=use_batch,
+            request_delay=args.request_delay,
+            turn_delay=args.turn_delay,
+            max_retries=args.max_retries,
+        )
         all_results.extend(results)
         output_dirs.append(out_dir)
         if metrics_collector:
