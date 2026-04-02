@@ -177,6 +177,8 @@ def should_use_realtime(entry, model_name):
     - Providers without active batch support
     """
     prompt = entry.get("prompt") or entry.get("input")
+    if not prompt:
+        return True
     if isinstance(prompt, list):
         return True
 
