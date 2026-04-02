@@ -29,7 +29,7 @@ def load_adapter(name):
     if name_lower == "mock":
         return lambda text, config, messages=None: mock_generate_response(text, config.get("model_name"), config, messages=messages)
     if name_lower == "openrouter":
-        return lambda text, config, messages=None: openrouter_generate_response(text, config.get("model_name"), config, messages=messages)
+        return lambda text, config, messages=None: openrouter_generate_response(text, config.get("model", config.get("model_name")), config, messages=messages)
     if name_lower == "ollama":
         return lambda text, config, messages=None: ollama_generate_response(text, config.get("model_name"), config, messages=messages)
     if name_lower in ("claude_code", "claude"):
