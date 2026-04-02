@@ -44,5 +44,9 @@ async def generate_response(prompt, model_name="openai/gpt-oss-20b:free", config
     async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.post(endpoint, headers=headers, json=data)
         response.raise_for_status()
-        content = response.json()["choices"][0]["message"]["content"]
+        result = response.json()
+        choices = result.get("choices") or []
+        if not choices:
+            raise ValueError(f"empty response: no choices returned (model={model_name})")
+        content = choices[0].get("message", {}).get("content")
         return content if content is not None else ""
