@@ -1,0 +1,13 @@
+adapter: openrouter
+model: anthropic/claude-haiku-4.5
+model_name: Claude Haiku 4.5
+is_simulation: false
+dataset: evals_dataset.json
+output: eval_openrouter_haiku.csv
+output_dir: outputs
+openrouter_api_key: ""
+openrouter_endpoint: https://openrouter.ai/api/v1/chat/completions
+temperature: 0.7
+tier: full
+use_timestamp_output_dir: true
+max_workers: 3
