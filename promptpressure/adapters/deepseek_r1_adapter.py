@@ -59,7 +59,10 @@ async def generate_response(prompt, model_name="deepseek/deepseek-r1", config=No
         response.raise_for_status()
         result = response.json()
 
-    choice = result["choices"][0]["message"]
+    choices = result.get("choices") or []
+    if not choices:
+        raise ValueError(f"empty response: no choices returned (model={model_name})")
+    choice = choices[0].get("message") or {}
     raw_content = choice.get("content") or ""
 
     # Extract reasoning tokens. R1 returns them either in:
