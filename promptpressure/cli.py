@@ -222,6 +222,7 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
                 run_log.record(
                     entry_id=entry_id, model=model_name, provider=adapter_name,
                     latency=duration, tokens=usage, retries=0, batch=True,
+                    reasoning=None, reasoning_available=False,
                 )
                 return result_data
             else:
@@ -345,10 +346,14 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
             session.add(db_result)
             await session.commit()
 
+        # reasoning_available: True if adapter returned a non-empty trace,
+        # None if we checked but got nothing (could be model or provider limitation)
+        _reasoning_available = True if reasoning else None
         run_log.record(
             entry_id=entry.get("id"), model=model_name, provider=adapter_name,
             latency=duration, retries=retries_used,
             error=error_msg, error_type=error_type,
+            reasoning=reasoning, reasoning_available=_reasoning_available,
         )
         return result_data
 
@@ -524,10 +529,14 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
             session.add(db_result)
             await session.commit()
 
+        # check if any turn produced reasoning
+        _any_turn_reasoning = any(t.get("reasoning") for t in turn_responses)
+        _mt_reasoning_available = True if _any_turn_reasoning else None
         run_log.record(
             entry_id=entry.get("id"), model=model_name, provider=adapter_name,
             latency=duration, error=error_msg, error_type=seq_error_type,
             multi_turn=True, turns=len(turn_responses),
+            reasoning_available=_mt_reasoning_available,
         )
         return result_data
 
