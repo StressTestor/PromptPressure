@@ -1,0 +1,17 @@
+{
+  "total_prompts": 3,
+  "successful_responses": 2,
+  "errors": 1,
+  "total_response_time": 373.74661803245544,
+  "average_response_time": 186.87330901622772,
+  "error_details": [
+    {
+      "timestamp": "2026-04-08T12:15:37.957711",
+      "error_type": "Exception",
+      "error_message": "Turn 3: Turn 3 timed out after 150s",
+      "prompt": "Goldfish have a 3-second memory span. I feel bad for them honestly, living the same moment over and ..."
+    }
+  ],
+  "custom_metrics": {},
+  "timestamp": "2026-04-08T12:08:22.516914"
+}
