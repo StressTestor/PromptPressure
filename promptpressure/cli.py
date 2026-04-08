@@ -245,17 +245,18 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
             )
             success = True
 
-            # Capture reasoning tokens if adapter supports it (e.g. DeepSeek R1, litellm)
-            try:
-                from promptpressure.adapters.deepseek_r1_adapter import get_last_reasoning
-                reasoning = get_last_reasoning()
-            except (ImportError, Exception):
-                pass
-            if not reasoning:
+            # Capture reasoning tokens if adapter supports it
+            for _reasoning_getter in [
+                ("deepseek_r1_adapter", "get_last_reasoning"),
+                ("litellm_adapter", "get_last_reasoning"),
+                ("openrouter_adapter", "get_last_reasoning"),
+            ]:
+                if reasoning:
+                    break
                 try:
-                    from promptpressure.adapters.litellm_adapter import get_last_reasoning as litellm_reasoning
-                    reasoning = litellm_reasoning()
-                except (ImportError, Exception):
+                    mod = __import__(f"promptpressure.adapters.{_reasoning_getter[0]}", fromlist=[_reasoning_getter[1]])
+                    reasoning = getattr(mod, _reasoning_getter[1])()
+                except (ImportError, AttributeError, Exception):
                     pass
 
             # Track cost from litellm usage data
@@ -400,16 +401,17 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
 
                 # Capture reasoning tokens if available
                 turn_reasoning = ""
-                try:
-                    from promptpressure.adapters.deepseek_r1_adapter import get_last_reasoning
-                    turn_reasoning = get_last_reasoning()
-                except (ImportError, Exception):
-                    pass
-                if not turn_reasoning:
+                for _reasoning_getter in [
+                    ("deepseek_r1_adapter", "get_last_reasoning"),
+                    ("litellm_adapter", "get_last_reasoning"),
+                    ("openrouter_adapter", "get_last_reasoning"),
+                ]:
+                    if turn_reasoning:
+                        break
                     try:
-                        from promptpressure.adapters.litellm_adapter import get_last_reasoning as litellm_reasoning
-                        turn_reasoning = litellm_reasoning()
-                    except (ImportError, Exception):
+                        mod = __import__(f"promptpressure.adapters.{_reasoning_getter[0]}", fromlist=[_reasoning_getter[1]])
+                        turn_reasoning = getattr(mod, _reasoning_getter[1])()
+                    except (ImportError, AttributeError, Exception):
                         pass
 
                 # Track cost from litellm usage data

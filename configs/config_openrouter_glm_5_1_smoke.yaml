@@ -11,3 +11,4 @@ temperature: 0.7
 tier: quick
 use_timestamp_output_dir: true
 max_workers: 1
+timeout: 120
