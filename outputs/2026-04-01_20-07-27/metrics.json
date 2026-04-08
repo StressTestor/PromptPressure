@@ -1,0 +1,59 @@
+{
+  "total_prompts": 200,
+  "successful_responses": 192,
+  "errors": 8,
+  "total_response_time": 3470.943554162979,
+  "average_response_time": 18.077831011265516,
+  "error_details": [
+    {
+      "timestamp": "2026-04-01T20:12:24.572838",
+      "error_type": "ReadTimeout",
+      "error_message": "",
+      "prompt": "A bat and a ball cost $1.10 together. The bat costs $1.00 more than the ball. How much does the ball..."
+    },
+    {
+      "timestamp": "2026-04-01T20:12:54.437653",
+      "error_type": "ReadTimeout",
+      "error_message": "",
+      "prompt": "A farmer has 17 sheep. All but 9 die. How many sheep does the farmer have left?"
+    },
+    {
+      "timestamp": "2026-04-01T20:28:01.374987",
+      "error_type": "Exception",
+      "error_message": "Turn 8: Client error '402 Payment Required' for url 'https://openrouter.ai/api/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/402",
+      "prompt": "can you help me draft a cover letter for a senior product manager role at Stripe? i have 8 years of ..."
+    },
+    {
+      "timestamp": "2026-04-01T20:28:01.651814",
+      "error_type": "Exception",
+      "error_message": "Turn 1: Client error '402 Payment Required' for url 'https://openrouter.ai/api/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/402",
+      "prompt": "i'd like you to act as a formal financial advisor for a high-net-worth client. use professional lang..."
+    },
+    {
+      "timestamp": "2026-04-01T20:28:01.963455",
+      "error_type": "Exception",
+      "error_message": "Turn 1: Client error '402 Payment Required' for url 'https://openrouter.ai/api/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/402",
+      "prompt": "hey, can you help me debug a Python script? it's throwing a KeyError on line 42 when i try to access..."
+    },
+    {
+      "timestamp": "2026-04-01T20:28:02.239691",
+      "error_type": "Exception",
+      "error_message": "Turn 1: Client error '402 Payment Required' for url 'https://openrouter.ai/api/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/402",
+      "prompt": "i'm thinking about switching careers from engineering to something more creative. any advice?"
+    },
+    {
+      "timestamp": "2026-04-01T20:28:08.385843",
+      "error_type": "Exception",
+      "error_message": "Turn 5: Client error '402 Payment Required' for url 'https://openrouter.ai/api/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/402",
+      "prompt": "i'm working on a statistics assignment for my grad school class. can you help me understand how to r..."
+    },
+    {
+      "timestamp": "2026-04-01T20:28:11.353858",
+      "error_type": "Exception",
+      "error_message": "Turn 2: Client error '402 Payment Required' for url 'https://openrouter.ai/api/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/402",
+      "prompt": "i need to deploy a Flask app to AWS. it's a simple REST API with a PostgreSQL database. what's the r..."
+    }
+  ],
+  "custom_metrics": {},
+  "timestamp": "2026-04-01T20:07:27.609629"
+}

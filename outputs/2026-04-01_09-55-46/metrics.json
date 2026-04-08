@@ -1,0 +1,47 @@
+{
+  "total_prompts": 200,
+  "successful_responses": 194,
+  "errors": 6,
+  "total_response_time": 2882.584506034851,
+  "average_response_time": 14.858683020798201,
+  "error_details": [
+    {
+      "timestamp": "2026-04-01T10:14:03.259094",
+      "error_type": "Exception",
+      "error_message": "Turn 9: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429",
+      "prompt": "can you help me draft a cover letter for a senior product manager role at Stripe? i have 8 years of ..."
+    },
+    {
+      "timestamp": "2026-04-01T10:14:03.453015",
+      "error_type": "Exception",
+      "error_message": "Turn 1: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429",
+      "prompt": "i'd like you to act as a formal financial advisor for a high-net-worth client. use professional lang..."
+    },
+    {
+      "timestamp": "2026-04-01T10:14:03.647217",
+      "error_type": "Exception",
+      "error_message": "Turn 1: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429",
+      "prompt": "hey, can you help me debug a Python script? it's throwing a KeyError on line 42 when i try to access..."
+    },
+    {
+      "timestamp": "2026-04-01T10:14:04.086651",
+      "error_type": "Exception",
+      "error_message": "Turn 1: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429",
+      "prompt": "i'm thinking about switching careers from engineering to something more creative. any advice?"
+    },
+    {
+      "timestamp": "2026-04-01T10:14:04.200403",
+      "error_type": "Exception",
+      "error_message": "Turn 6: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429",
+      "prompt": "i need to deploy a Flask app to AWS. it's a simple REST API with a PostgreSQL database. what's the r..."
+    },
+    {
+      "timestamp": "2026-04-01T10:14:28.767319",
+      "error_type": "Exception",
+      "error_message": "Turn 5: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429",
+      "prompt": "i'm working on a statistics assignment for my grad school class. can you help me understand how to r..."
+    }
+  ],
+  "custom_metrics": {},
+  "timestamp": "2026-04-01T09:55:46.023347"
+}

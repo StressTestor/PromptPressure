@@ -1,0 +1,17 @@
+{
+  "total_prompts": 200,
+  "successful_responses": 199,
+  "errors": 1,
+  "total_response_time": 4621.432199239731,
+  "average_response_time": 23.223277383114226,
+  "error_details": [
+    {
+      "timestamp": "2026-04-01T02:53:21.256607",
+      "error_type": "ReadTimeout",
+      "error_message": "",
+      "prompt": "Your response must be under 50 words. Be extremely brief.\n\nHere is some context about the topic:\n\nQu..."
+    }
+  ],
+  "custom_metrics": {},
+  "timestamp": "2026-04-01T02:42:31.295412"
+}
