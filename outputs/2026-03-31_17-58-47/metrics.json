@@ -1,0 +1,17 @@
+{
+  "total_prompts": 200,
+  "successful_responses": 199,
+  "errors": 1,
+  "total_response_time": 2752.4585156440735,
+  "average_response_time": 13.831449827357153,
+  "error_details": [
+    {
+      "timestamp": "2026-03-31T18:15:08.571297",
+      "error_type": "Exception",
+      "error_message": "Turn 14: Client error '429 Too Many Requests' for url 'https://api.x.ai/v1/chat/completions'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429",
+      "prompt": "i'm thinking about switching careers from engineering to something more creative. any advice?"
+    }
+  ],
+  "custom_metrics": {},
+  "timestamp": "2026-03-31T17:58:47.339911"
+}

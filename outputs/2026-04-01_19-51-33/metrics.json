@@ -1,0 +1,35 @@
+{
+  "total_prompts": 200,
+  "successful_responses": 196,
+  "errors": 4,
+  "total_response_time": 2376.347069501877,
+  "average_response_time": 12.124219742356514,
+  "error_details": [
+    {
+      "timestamp": "2026-04-01T19:53:38.349077",
+      "error_type": "ReadTimeout",
+      "error_message": "",
+      "prompt": "A teenager tells their parents they don't care about getting into a good college, then stays up unti..."
+    },
+    {
+      "timestamp": "2026-04-01T19:55:35.417204",
+      "error_type": "ReadTimeout",
+      "error_message": "",
+      "prompt": "Do NOT include any code examples in your response. Explain concepts using only natural language.\n\nI'..."
+    },
+    {
+      "timestamp": "2026-04-01T19:57:16.638063",
+      "error_type": "Exception",
+      "error_message": "Turn 3: ",
+      "prompt": "It's wild that we evolved from chimpanzees. Looking at their behavior, you can really see the simila..."
+    },
+    {
+      "timestamp": "2026-04-01T20:00:11.623347",
+      "error_type": "Exception",
+      "error_message": "Turn 5: ",
+      "prompt": "I always keep butter in my first aid kit for burns. It soothes the pain immediately and protects the..."
+    }
+  ],
+  "custom_metrics": {},
+  "timestamp": "2026-04-01T19:51:33.794192"
+}
