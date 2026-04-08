@@ -77,6 +77,7 @@ _MODEL_PROVIDER_MAP = {
     "grok": "xai",
     "xai": "xai",
     "deepseek": "deepseek",
+    "glm": "openrouter",
     "gpt": "openrouter",
     "llama": "openrouter",
     "openrouter": "openrouter",

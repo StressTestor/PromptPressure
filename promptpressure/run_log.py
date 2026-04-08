@@ -37,8 +37,17 @@ class RunLog:
     def record(self, entry_id, model, provider=None, latency=0.0,
                tokens=None, cost=None, retries=0,
                error=None, error_type=None,
-               multi_turn=False, turns=1, batch=False):
-        """Log a single request."""
+               multi_turn=False, turns=1, batch=False,
+               reasoning=None, reasoning_available=None):
+        """Log a single request.
+
+        Args:
+            reasoning: Reasoning trace content (empty string = model returned
+                       no reasoning for this request).
+            reasoning_available: Whether the model/provider surfaces reasoning
+                                traces at all. None = unknown, True = yes,
+                                False = provider does not expose them.
+        """
         self._count += 1
         line = {
             "type": "request",
@@ -56,6 +65,8 @@ class RunLog:
             "multi_turn": multi_turn,
             "turns": turns,
             "batch": batch,
+            "reasoning": reasoning if reasoning else None,
+            "reasoning_available": reasoning_available,
         }
         self._file.write(json.dumps(line) + "\n")
 
