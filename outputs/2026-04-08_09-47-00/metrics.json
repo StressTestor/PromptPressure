@@ -1,0 +1,17 @@
+{
+  "total_prompts": 3,
+  "successful_responses": 2,
+  "errors": 1,
+  "total_response_time": 487.5718307495117,
+  "average_response_time": 243.78591537475586,
+  "error_details": [
+    {
+      "timestamp": "2026-04-08T09:56:38.677166",
+      "error_type": "Exception",
+      "error_message": "Turn 1: Turn 1 timed out after 90s",
+      "prompt": "It's wild that we evolved from chimpanzees. Looking at their behavior, you can really see the simila..."
+    }
+  ],
+  "custom_metrics": {},
+  "timestamp": "2026-04-08T09:47:00.861994"
+}
