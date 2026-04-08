@@ -11,3 +11,6 @@ temperature: 0.7
 tier: full
 use_timestamp_output_dir: true
 max_workers: 3
+# base timeout 120s. multi-turn ladder scales to 180/240/300/360s per turn.
+# GLM-5.1 is slow on long-context multi-turn; default 60s base caused 10 timeouts in pass 1.
+timeout: 120
