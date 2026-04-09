@@ -1,19 +1,19 @@
 {
-  "generated_at": "2026-04-08T09:56:38.704375",
+  "generated_at": "2026-04-08T18:55:01.962742",
   "metrics": {
-    "total_evaluations": 3,
+    "total_evaluations": 200,
     "custom_metrics_results": {
       "response_length": {
-        "mean": 11614.666666666666,
+        "mean": 1806.59,
         "min": 0,
-        "max": 19822,
-        "total": 34844
+        "max": 19748,
+        "total": 361318
       },
       "word_count": {
-        "mean": 1787.0,
+        "mean": 291.26,
         "min": 0,
-        "max": 3058,
-        "total": 5361
+        "max": 3164,
+        "total": 58252
       }
     }
   }
