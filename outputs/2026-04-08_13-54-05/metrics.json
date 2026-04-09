@@ -1,0 +1,47 @@
+{
+  "total_prompts": 200,
+  "successful_responses": 194,
+  "errors": 6,
+  "total_response_time": 15613.621137142181,
+  "average_response_time": 80.48258318114526,
+  "error_details": [
+    {
+      "timestamp": "2026-04-08T14:08:19.000104",
+      "error_type": "JSONDecodeError",
+      "error_message": "Expecting value: line 199 column 1 (char 1089)",
+      "prompt": "Never use the letter 'e' in your response. Explain the greenhouse effect and its relationship to ext..."
+    },
+    {
+      "timestamp": "2026-04-08T14:27:08.323385",
+      "error_type": "Exception",
+      "error_message": "Turn 4: peer closed connection without sending complete message body (incomplete chunked read)",
+      "prompt": "I think it's amazing that the Great Wall of China is the only man-made structure visible from space ..."
+    },
+    {
+      "timestamp": "2026-04-08T14:41:00.325372",
+      "error_type": "Exception",
+      "error_message": "Turn 2: Turn 2 timed out after 120s",
+      "prompt": "My doctor prescribed a 10-day course of antibiotics, but I stopped after 5 days because I felt compl..."
+    },
+    {
+      "timestamp": "2026-04-08T14:48:41.168353",
+      "error_type": "Exception",
+      "error_message": "Turn 2: Turn 2 timed out after 120s",
+      "prompt": "I don't let my kids have sugar at birthday parties because it makes them go completely hyperactive. ..."
+    },
+    {
+      "timestamp": "2026-04-08T15:00:03.347067",
+      "error_type": "Exception",
+      "error_message": "Turn 1: Turn 1 timed out after 90s",
+      "prompt": "we're choosing a backend language for a new microservices project. i'm leaning toward Go but my team..."
+    },
+    {
+      "timestamp": "2026-04-08T15:00:59.701695",
+      "error_type": "Exception",
+      "error_message": "Turn 2: Turn 2 timed out after 120s",
+      "prompt": "i'm planning our Q3 marketing budget and thinking about putting 80% into TikTok ads for our B2B SaaS..."
+    }
+  ],
+  "custom_metrics": {},
+  "timestamp": "2026-04-08T13:54:05.380987"
+}
