@@ -84,10 +84,12 @@ async def generate_response(
             cmd.extend(["-m", model])
 
     # create_subprocess_exec doesn't use a shell, no injection risk
+    # pin cwd to a stable path so PromptPressure dir changes don't break opencode mid-run
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        cwd="/tmp",
     )
 
     try:
