@@ -187,7 +187,7 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
                 success = True
                 usage = batch_result.get("usage", {})
                 if usage:
-                    cost_tracker.record_from_usage(
+                    await cost_tracker.record_from_usage(
                         model_name,
                         usage.get("input_tokens", usage.get("prompt_tokens", 0)),
                         usage.get("output_tokens", usage.get("completion_tokens", 0)),
@@ -273,12 +273,12 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
                 from promptpressure.adapters.litellm_adapter import get_last_usage
                 usage = get_last_usage()
                 if usage:
-                    cost_tracker.record_from_usage(
+                    await cost_tracker.record_from_usage(
                         model_name,
                         usage.get("prompt_tokens", 0),
                         usage.get("completion_tokens", 0),
                     )
-            except (ImportError, Exception):
+            except ImportError:
                 pass
 
             if collect_metrics:
@@ -428,12 +428,12 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
                     from promptpressure.adapters.litellm_adapter import get_last_usage
                     turn_usage = get_last_usage()
                     if turn_usage:
-                        cost_tracker.record_from_usage(
+                        await cost_tracker.record_from_usage(
                             model_name,
                             turn_usage.get("prompt_tokens", 0),
                             turn_usage.get("completion_tokens", 0),
                         )
-                except (ImportError, Exception):
+                except ImportError:
                     pass
 
                 # Add assistant response to conversation history
