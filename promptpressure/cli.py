@@ -29,12 +29,14 @@ from promptpressure.resilience import is_retryable, classify_error, retry_with_b
 from promptpressure.grading import post_analyze_groq, post_analyze_openrouter
 
 def log_error(output_dir, error_msg):
-    output_dir = os.path.abspath(output_dir)
-    os.makedirs(output_dir, exist_ok=True)
     log_path = os.path.join(output_dir, "error.log")
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    with open(log_path, "a", encoding="utf-8") as log_file:
-        log_file.write(f"[{timestamp}] {error_msg}\n")
+    try:
+        with open(log_path, "a", encoding="utf-8") as log_file:
+            log_file.write(f"[{timestamp}] {error_msg}\n")
+    except OSError as log_exc:
+        import sys
+        print(f"[{timestamp}] log_error failed ({log_exc}); original: {error_msg}", file=sys.stderr)
 
 async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_delay=1.0, turn_delay=2.0, max_retries=3):
     """
@@ -67,7 +69,7 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
     base_output_dir = config.get("output_dir", "outputs")
     use_ts = config.get("use_timestamp_output_dir", True)
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") if use_ts else None
-    output_dir = os.path.join(base_output_dir, ts) if ts else base_output_dir
+    output_dir = os.path.abspath(os.path.join(base_output_dir, ts) if ts else base_output_dir)
     os.makedirs(output_dir, exist_ok=True)
     run_log = RunLog(output_dir)
 

@@ -12,8 +12,11 @@ Multi-turn:  opencode run "turn" -m model --continue --format json
 """
 
 import asyncio
+import hashlib
 import json
+import os
 import shutil
+import tempfile
 from typing import Optional
 
 
@@ -23,6 +26,30 @@ def _check_installed():
             "OpenCode CLI not found on PATH. "
             "Install via: npm i -g opencode-ai"
         )
+
+
+def _session_cwd(messages: Optional[list]) -> str:
+    """
+    Per-conversation working directory for opencode.
+
+    opencode persists session state (.opencode/) in cwd; --continue resumes the
+    most recent session there. Sharing one cwd across parallel conversations
+    causes them to resume each other's sessions. Hash the first user message
+    so all turns of one conversation land in the same dir, while different
+    conversations land in different dirs.
+    """
+    base = tempfile.gettempdir()
+    if messages:
+        first_user = next(
+            (m["content"] for m in messages if m["role"] == "user"),
+            "",
+        )
+        digest = hashlib.sha1(first_user.encode("utf-8", errors="replace")).hexdigest()[:12]
+        cwd = os.path.join(base, f"promptpressure-opencode-{digest}")
+    else:
+        cwd = os.path.join(base, "promptpressure-opencode-single")
+    os.makedirs(cwd, exist_ok=True)
+    return cwd
 
 
 def _parse_json_events(raw: str) -> str:
@@ -84,12 +111,11 @@ async def generate_response(
             cmd.extend(["-m", model])
 
     # create_subprocess_exec doesn't use a shell, no injection risk
-    # pin cwd to a stable path so PromptPressure dir changes don't break opencode mid-run
     proc = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
-        cwd="/tmp",
+        cwd=_session_cwd(messages),
     )
 
     try:
