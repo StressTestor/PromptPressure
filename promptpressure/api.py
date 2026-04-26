@@ -16,19 +16,47 @@ from promptpressure.cli import run_evaluation_suite
 
 app = FastAPI(title="PromptPressure API", version="3.0.0")
 
-# CORS: localhost-only by default, overridable via PROMPTPRESSURE_CORS_ORIGINS env var
-_default_origins = ["http://localhost:3000", "http://localhost:8000", "http://127.0.0.1:3000", "http://127.0.0.1:8000"]
-_cors_origins = os.getenv("PROMPTPRESSURE_CORS_ORIGINS", "").split(",") if os.getenv("PROMPTPRESSURE_CORS_ORIGINS") else _default_origins
+
+def _read_cors_origins() -> list[str]:
+    """Resolve CORS origins from env at the time this is called.
+
+    Resolved lazily so the `--cors-origins` CLI flag (which mutates the
+    env var before uvicorn.run) takes effect.
+    """
+    raw = os.getenv("PROMPTPRESSURE_CORS_ORIGINS", "")
+    if raw:
+        origins = [o.strip() for o in raw.split(",") if o.strip()]
+        if origins:
+            return origins
+    return ["http://localhost:3000", "http://localhost:8000",
+            "http://127.0.0.1:3000", "http://127.0.0.1:8000"]
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in _cors_origins if o.strip()],
+    allow_origins=_read_cors_origins(),
     allow_methods=["GET", "POST"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
-# JWT-like auth using HMAC-SHA256 bearer tokens
-# Set PROMPTPRESSURE_API_SECRET to enable auth. If unset, auth is disabled (local dev).
+# HMAC-SHA256 bearer tokens. Set PROMPTPRESSURE_API_SECRET to enable auth.
+# If unset, the server refuses to start unless PROMPTPRESSURE_DEV_NO_AUTH=1.
+# /plugins/install runs `pip install <wire-input>` so unauth = RCE.
 API_SECRET = os.getenv("PROMPTPRESSURE_API_SECRET")
+DEV_NO_AUTH = os.getenv("PROMPTPRESSURE_DEV_NO_AUTH") == "1"
+
+if not API_SECRET and not DEV_NO_AUTH:
+    raise RuntimeError(
+        "PROMPTPRESSURE_API_SECRET is unset. The plugin install endpoint "
+        "executes `pip install <wire-input>`; running without auth is RCE. "
+        "Set PROMPTPRESSURE_API_SECRET, or set PROMPTPRESSURE_DEV_NO_AUTH=1 "
+        "for local development."
+    )
+if DEV_NO_AUTH:
+    logging.warning(
+        "PROMPTPRESSURE_DEV_NO_AUTH=1: auth disabled. Do not expose this "
+        "process beyond localhost. /plugins/install runs pip install."
+    )
 
 EVENT_QUEUES: Dict[str, asyncio.Queue] = {}
 
@@ -45,8 +73,10 @@ def _verify_token(token: str) -> bool:
         expected = hmac.HMAC(API_SECRET.encode(), ts.encode(), hashlib.sha256).hexdigest()
         if not hmac.compare_digest(sig, expected):
             return False
-        # Token expires after 24h
-        if abs(time.time() - int(ts)) > 86400:
+        # Token expires after 24h. Reject future-dated tokens too -- abs() would
+        # let a pre-minted token from a clock-skewed environment stay valid 48h.
+        delta = time.time() - int(ts)
+        if delta < 0 or delta > 86400:
             return False
         return True
     except Exception:
@@ -88,7 +118,7 @@ async def trigger_evaluation(request: EvalRequest, background_tasks: BackgroundT
     return {"run_id": run_id, "status": "started", "stream_url": f"/stream/{run_id}"}
 
 
-@app.get("/stream/{run_id}")
+@app.get("/stream/{run_id}", dependencies=[Depends(require_auth)])
 async def stream_events(run_id: str):
     from sse_starlette.sse import EventSourceResponse
     if run_id not in EVENT_QUEUES:
@@ -97,11 +127,14 @@ async def stream_events(run_id: str):
     queue = EVENT_QUEUES[run_id]
 
     async def event_generator() -> AsyncGenerator[dict, None]:
-        while True:
-            item = await queue.get()
-            if item is None:
-                break
-            yield item
+        try:
+            while True:
+                item = await queue.get()
+                if item is None:
+                    break
+                yield item
+        finally:
+            EVENT_QUEUES.pop(run_id, None)
 
     return EventSourceResponse(event_generator())
 
@@ -274,10 +307,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="PromptPressure API Server")
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind to (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8000, help="Port to run on")
-    parser.add_argument("--cors-origins", help="Comma-separated CORS origins (overrides default localhost-only)")
     args = parser.parse_args()
 
-    if args.cors_origins:
-        os.environ["PROMPTPRESSURE_CORS_ORIGINS"] = args.cors_origins
-
+    # CORS origins must be set via PROMPTPRESSURE_CORS_ORIGINS env var
+    # before launch -- the FastAPI middleware is registered at import time
+    # so a CLI flag here would be a no-op.
     uvicorn.run(app, host=args.host, port=args.port)
