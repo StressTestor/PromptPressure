@@ -1,6 +1,7 @@
 # v1.7 AsyncIO Refactor + Database Integration
 
 import os
+import sys
 import argparse
 import json
 import csv
@@ -35,7 +36,6 @@ def log_error(output_dir, error_msg):
         with open(log_path, "a", encoding="utf-8") as log_file:
             log_file.write(f"[{timestamp}] {error_msg}\n")
     except OSError as log_exc:
-        import sys
         print(f"[{timestamp}] log_error failed ({log_exc}); original: {error_msg}", file=sys.stderr)
 
 async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_delay=1.0, turn_delay=2.0, max_retries=3):
@@ -62,7 +62,6 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
     print(f"Tier '{tier}': {len(prompts)}/{original_count} sequences selected")
     if not prompts:
         print(f"ERROR: Tier '{tier}' matched 0 entries. Nothing to evaluate.")
-        import sys
         sys.exit(1)
 
     # Prepare output directory
@@ -779,7 +778,6 @@ async def main_async():
             # Strip potentially secret-containing details from error
             err_msg = str(e).split("input_value=")[0] if "input_value=" in str(e) else str(e)
             print(f"Error loading config '{cfg_file}': {err_msg}")
-            import sys
             sys.exit(1)
         config_dict = config.model_dump()
         if tier_override:
@@ -857,7 +855,6 @@ async def main_async():
         }
         print(json.dumps(ci_summary))
         if not ci_summary["success"]:
-            import sys
             sys.exit(1)
 
 def main():
