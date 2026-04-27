@@ -29,6 +29,8 @@ from promptpressure.resilience import is_retryable, classify_error, retry_with_b
 from promptpressure.grading import post_analyze_groq, post_analyze_openrouter
 
 def log_error(output_dir, error_msg):
+    output_dir = os.path.abspath(output_dir)
+    os.makedirs(output_dir, exist_ok=True)
     log_path = os.path.join(output_dir, "error.log")
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with open(log_path, "a", encoding="utf-8") as log_file:
