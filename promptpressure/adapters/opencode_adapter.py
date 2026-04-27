@@ -12,12 +12,24 @@ Multi-turn:  opencode run "turn" -m model --continue --format json
 """
 
 import asyncio
+import atexit
 import hashlib
 import json
 import os
 import shutil
 import tempfile
 from typing import Optional
+
+_SESSION_DIRS: set[str] = set()
+
+
+def _cleanup_session_dirs() -> None:
+    for path in list(_SESSION_DIRS):
+        shutil.rmtree(path, ignore_errors=True)
+    _SESSION_DIRS.clear()
+
+
+atexit.register(_cleanup_session_dirs)
 
 
 def _check_installed():
@@ -32,11 +44,12 @@ def _session_cwd(messages: Optional[list]) -> str:
     """
     Per-conversation working directory for opencode.
 
-    opencode persists session state (.opencode/) in cwd; --continue resumes the
-    most recent session there. Sharing one cwd across parallel conversations
-    causes them to resume each other's sessions. Hash the first user message
-    so all turns of one conversation land in the same dir, while different
-    conversations land in different dirs.
+    opencode persists session state in cwd and `--continue` resumes the most
+    recent session there, so sharing one cwd across parallel conversations
+    lets them resume each other's sessions. Hash the first user message so
+    every turn of one conversation lands in the same dir while different
+    conversations land in different dirs. Dirs are tracked and cleaned up
+    by the atexit hook above.
     """
     base = tempfile.gettempdir()
     if messages:
@@ -49,6 +62,7 @@ def _session_cwd(messages: Optional[list]) -> str:
     else:
         cwd = os.path.join(base, "promptpressure-opencode-single")
     os.makedirs(cwd, exist_ok=True)
+    _SESSION_DIRS.add(cwd)
     return cwd
 
 
