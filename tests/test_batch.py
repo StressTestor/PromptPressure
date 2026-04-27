@@ -139,25 +139,25 @@ class TestCostTracker:
         assert s["total_cost_usd"] == 0
         assert s["per_model"] == {}
 
-    def test_record_from_usage(self):
+    async def test_record_from_usage(self):
         ct = CostTracker()
-        ct.record_from_usage("test-model", 100, 50)
+        await ct.record_from_usage("test-model", 100, 50)
         s = ct.summary()
         assert s["per_model"]["test-model"]["requests"] == 1
 
-    def test_multiple_records_accumulate(self):
+    async def test_multiple_records_accumulate(self):
         ct = CostTracker()
-        ct.record_from_usage("model-a", 100, 50)
-        ct.record_from_usage("model-a", 200, 100)
-        ct.record_from_usage("model-b", 50, 25)
+        await ct.record_from_usage("model-a", 100, 50)
+        await ct.record_from_usage("model-a", 200, 100)
+        await ct.record_from_usage("model-b", 50, 25)
         s = ct.summary()
         assert s["per_model"]["model-a"]["requests"] == 2
         assert s["per_model"]["model-b"]["requests"] == 1
 
-    def test_record_from_response_dict(self):
+    async def test_record_from_response_dict(self):
         ct = CostTracker()
         resp = {"usage": {"prompt_tokens": 100, "completion_tokens": 50}}
-        ct.record("test-model", resp)
+        await ct.record("test-model", resp)
         s = ct.summary()
         assert s["per_model"]["test-model"]["requests"] == 1
 
