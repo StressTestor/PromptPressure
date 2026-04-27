@@ -4,6 +4,7 @@ Extracted from cli.py to keep the eval runner focused on orchestration.
 """
 
 import asyncio
+import random
 
 
 def is_retryable(error):
@@ -49,15 +50,18 @@ async def retry_with_backoff(fn, max_retries=3, base_delay=5.0, max_delay=60.0):
         The last exception if all retries are exhausted or
         the error is not retryable.
     """
-    last_error = None
+    if max_retries < 0:
+        raise ValueError(f"max_retries must be >= 0, got {max_retries}")
+
     for attempt in range(max_retries + 1):
         try:
             result = await fn()
             return result, attempt
         except Exception as e:
-            last_error = e
             if not is_retryable(e) or attempt == max_retries:
                 raise
-            delay = min(base_delay * (2 ** attempt), max_delay)
-            await asyncio.sleep(delay)
-    raise last_error
+            # Full jitter: pick uniformly in [0, capped_delay]. Without this,
+            # all concurrent retries fire on the same schedule and re-trip
+            # the same rate limit together.
+            capped = min(base_delay * (2 ** attempt), max_delay)
+            await asyncio.sleep(random.uniform(0, capped))
