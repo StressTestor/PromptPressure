@@ -5,20 +5,45 @@ import os
 import hmac
 import hashlib
 import time
+from contextlib import asynccontextmanager
 from typing import Dict, Any, AsyncGenerator, Optional
 
 from fastapi import FastAPI, BackgroundTasks, HTTPException, Header, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from promptpressure.config import Settings
 from promptpressure.cli import run_evaluation_suite
+from promptpressure.launcher_translate import LauncherRequest, launcher_to_settings_dict
+from promptpressure.run_bus import RunBus
 
-app = FastAPI(title="PromptPressure API", version="3.0.0")
+# Module-import auth gate (Finding #4 in the spec).
+# Either PROMPTPRESSURE_API_SECRET or PROMPTPRESSURE_DEV_NO_AUTH=1 must be set
+# or this module raises immediately. tests/conftest.py sets the dev flag.
+if not os.getenv("PROMPTPRESSURE_API_SECRET") and os.getenv("PROMPTPRESSURE_DEV_NO_AUTH") != "1":
+    raise RuntimeError(
+        "PROMPTPRESSURE_API_SECRET is required, or set PROMPTPRESSURE_DEV_NO_AUTH=1 for local dev."
+    )
 
-# CORS: localhost-only by default, overridable via PROMPTPRESSURE_CORS_ORIGINS env var
-_default_origins = ["http://localhost:3000", "http://localhost:8000", "http://127.0.0.1:3000", "http://127.0.0.1:8000"]
-_cors_origins = os.getenv("PROMPTPRESSURE_CORS_ORIGINS", "").split(",") if os.getenv("PROMPTPRESSURE_CORS_ORIGINS") else _default_origins
+bus = RunBus()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await bus.start_reaper()
+    try:
+        yield
+    finally:
+        await bus.stop_reaper()
+
+
+app = FastAPI(title="PromptPressure API", version="3.1.0", lifespan=lifespan)
+
+_default_origins = ["http://localhost:3000", "http://localhost:8000",
+                    "http://127.0.0.1:3000", "http://127.0.0.1:8000"]
+_cors_origins = (os.getenv("PROMPTPRESSURE_CORS_ORIGINS", "").split(",")
+                 if os.getenv("PROMPTPRESSURE_CORS_ORIGINS")
+                 else _default_origins)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in _cors_origins if o.strip()],
@@ -26,11 +51,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
-# JWT-like auth using HMAC-SHA256 bearer tokens
-# Set PROMPTPRESSURE_API_SECRET to enable auth. If unset, auth is disabled (local dev).
 API_SECRET = os.getenv("PROMPTPRESSURE_API_SECRET")
-
-EVENT_QUEUES: Dict[str, asyncio.Queue] = {}
 
 
 def _verify_token(token: str) -> bool:
@@ -65,43 +86,60 @@ async def require_auth(authorization: Optional[str] = Header(None)):
 
 
 class EvalRequest(BaseModel):
-    config: Dict[str, Any]
+    """
+    Accepts EITHER the existing config dict OR the new launcher_request shape.
+    Backward-compatible at the data level: existing {config: {...}} bodies
+    still validate and dispatch identically.
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    config: Optional[Dict[str, Any]] = None
+    launcher_request: Optional[LauncherRequest] = None
+
+    @model_validator(mode="after")
+    def exactly_one(self):
+        if (self.config is None) == (self.launcher_request is None):
+            raise ValueError("specify config OR launcher_request, not both")
+        return self
 
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "version": "3.0.0"}
+    return {"status": "ok", "version": "3.1.0"}
 
 
 @app.post("/evaluate", dependencies=[Depends(require_auth)])
 async def trigger_evaluation(request: EvalRequest, background_tasks: BackgroundTasks):
     import uuid
     run_id = str(uuid.uuid4())
-    EVENT_QUEUES[run_id] = asyncio.Queue()
+
+    if request.launcher_request is not None:
+        config_dict = launcher_to_settings_dict(request.launcher_request, run_id=run_id)
+    else:
+        config_dict = dict(request.config)  # copy; we'll mutate _callback
 
     try:
-        Settings(**request.config)
+        Settings(**config_dict)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    background_tasks.add_task(run_eval_background, run_id, request.config)
+    bus.start(run_id)
+    background_tasks.add_task(run_eval_background, run_id, config_dict)
     return {"run_id": run_id, "status": "started", "stream_url": f"/stream/{run_id}"}
 
 
 @app.get("/stream/{run_id}")
 async def stream_events(run_id: str):
     from sse_starlette.sse import EventSourceResponse
-    if run_id not in EVENT_QUEUES:
+    if not bus.has(run_id):
         raise HTTPException(status_code=404, detail="Run ID not found")
 
-    queue = EVENT_QUEUES[run_id]
-
     async def event_generator() -> AsyncGenerator[dict, None]:
-        while True:
-            item = await queue.get()
-            if item is None:
-                break
-            yield item
+        try:
+            async for item in bus.subscribe(run_id):
+                yield item
+        except KeyError:
+            return  # run was reaped between has() and subscribe()
 
     return EventSourceResponse(event_generator())
 
@@ -247,24 +285,16 @@ async def install_plugin(request: InstallPluginRequest):
 
 
 async def run_eval_background(run_id: str, config_dict: Dict[str, Any]):
-    queue = EVENT_QUEUES.get(run_id)
-
     async def log_callback(event_type: str, data: Any):
-        if queue:
-            await queue.put({"event": event_type, "data": data})
+        await bus.publish(run_id, {"event": event_type, "data": data})
 
     try:
-        config_dict['_callback'] = log_callback
+        config_dict["_callback"] = log_callback
         await run_evaluation_suite(config_dict, config_dict.get("adapter"))
-
-        if queue:
-            await queue.put({"event": "complete", "data": "Evaluation finished"})
-            await queue.put(None)
+        await bus.mark_completed(run_id, {"event": "complete", "data": "Evaluation finished"})
     except Exception as e:
         logging.error(f"Run {run_id} failed: {e}")
-        if queue:
-            await queue.put({"event": "error", "data": str(e)})
-            await queue.put(None)
+        await bus.mark_completed(run_id, {"event": "error", "data": str(e)})
 
 
 if __name__ == "__main__":
