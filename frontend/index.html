@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PromptPressure Launcher</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+  <main class="max-w-3xl mx-auto p-6 space-y-6">
+    <header>
+      <h1 class="text-2xl font-bold">PromptPressure</h1>
+      <p class="text-slate-400 text-sm">Pick a provider, model, and dataset. Hit Run.</p>
+    </header>
+
+    <section id="loading" class="text-slate-400" aria-live="polite">Loading providers and datasets…</section>
+
+    <section id="empty" class="hidden text-amber-400" aria-live="polite">
+      No providers reachable. Set <code>OPENROUTER_API_KEY</code> or start ollama, then refresh.
+    </section>
+
+    <form id="run-form" class="hidden space-y-4">
+      <div>
+        <label for="provider" class="block text-sm font-medium mb-1">Provider</label>
+        <select id="provider" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2"></select>
+      </div>
+
+      <div>
+        <label for="model" class="block text-sm font-medium mb-1">Model</label>
+        <input id="model" list="model-suggestions" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 hidden" />
+        <select id="model-select" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 hidden"></select>
+        <datalist id="model-suggestions"></datalist>
+        <p id="model-note" class="text-xs text-slate-500 mt-1"></p>
+      </div>
+
+      <fieldset>
+        <legend class="text-sm font-medium mb-1">Eval sets</legend>
+        <div id="eval-sets" class="space-y-1"></div>
+      </fieldset>
+
+      <button id="run-btn" type="submit"
+              class="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 px-4 py-2 rounded font-medium">
+        Run
+      </button>
+    </form>
+
+    <section>
+      <h2 class="text-sm font-medium text-slate-300 mb-2">Status</h2>
+      <pre id="status-panel"
+           class="bg-slate-800 border border-slate-700 rounded p-3 text-xs whitespace-pre-wrap min-h-32 max-h-96 overflow-auto"
+           aria-live="polite"></pre>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
