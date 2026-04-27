@@ -114,3 +114,44 @@ def test_providers_groq_unavailable_without_key(client, monkeypatch):
     groq_entry = next(p for p in r.json() if p["id"] == "groq")
     assert groq_entry["available"] is False
     assert "GROQ_API_KEY" in (groq_entry.get("reason") or "")
+
+
+def test_models_unknown_provider_returns_400(client):
+    r = client.get("/models?provider=does-not-exist")
+    assert r.status_code == 400
+
+
+def test_models_provider_query_required(client):
+    r = client.get("/models")
+    assert r.status_code == 422
+
+
+def test_models_openrouter_returns_free_text_with_suggestions(client):
+    from promptpressure.api import _models_cache
+    _models_cache.clear()
+    r = client.get("/models?provider=openrouter")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["free_text"] is True
+    assert isinstance(body["models"], list)
+    # The note should mention typing
+    assert "type" in (body.get("note") or "").lower()
+
+
+def test_models_cache_keyed_by_provider(client):
+    from promptpressure.api import _models_cache
+    _models_cache.clear()
+    r1 = client.get("/models?provider=openrouter")
+    r2 = client.get("/models?provider=groq")
+    assert r1.json() != r2.json()
+    # Both should be cached now under separate keys
+    assert len(_models_cache) == 2
+
+
+def test_models_mock_returns_free_text(client):
+    from promptpressure.api import _models_cache
+    _models_cache.clear()
+    r = client.get("/models?provider=mock")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["free_text"] is True

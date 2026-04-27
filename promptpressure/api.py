@@ -1,4 +1,5 @@
 import asyncio
+import glob
 import json
 import logging
 import os
@@ -7,6 +8,8 @@ import hashlib
 import time
 from contextlib import asynccontextmanager
 from typing import Dict, Any, AsyncGenerator, Optional, List
+
+import yaml as _yaml
 
 from cachetools import TTLCache
 from fastapi import FastAPI, BackgroundTasks, HTTPException, Header, Depends, Request
@@ -47,6 +50,25 @@ _PROVIDER_DEFS: List[Dict[str, Any]] = [
                  "XAI_API_KEY", "GROQ_API_KEY", "GOOGLE_API_KEY",
                  "DEEPSEEK_API_KEY", "LITELLM_API_KEY"]},
 ]
+
+_VALID_PROVIDERS = {p["id"] for p in _PROVIDER_DEFS}
+
+
+def _suggestions_from_configs(provider: str) -> List[str]:
+    """Aggregate model: values across configs/*.yaml filtered by adapter:."""
+    suggestions: List[str] = []
+    for path in sorted(glob.glob("configs/*.yaml")):
+        try:
+            with open(path) as f:
+                data = _yaml.safe_load(f) or {}
+        except Exception as e:
+            logging.warning("Failed to parse %s: %s", path, e)
+            continue
+        if (data.get("adapter") or "").lower() == provider.lower():
+            m = data.get("model")
+            if isinstance(m, str) and m and m not in suggestions:
+                suggestions.append(m)
+    return suggestions
 
 
 @asynccontextmanager
@@ -283,6 +305,35 @@ async def list_providers():
     result = [await _provider_status(d) for d in _PROVIDER_DEFS]
     _providers_cache[cache_key] = result
     return result
+
+
+@app.get("/models")
+async def list_models(provider: str):
+    if provider not in _VALID_PROVIDERS:
+        raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
+
+    cache_key = ("models", provider)
+    if cache_key in _models_cache:
+        return _models_cache[cache_key]
+
+    if provider == "ollama":
+        from promptpressure.adapters import ollama_adapter
+        try:
+            raw = await ollama_adapter.list_models()
+            models = [m.get("name") for m in raw if m.get("name")]
+            payload = {"models": models, "note": None, "free_text": False}
+        except Exception as e:
+            payload = {"models": [], "note": f"ollama unavailable: {e}", "free_text": True}
+    else:
+        suggestions = _suggestions_from_configs(provider)
+        payload = {
+            "models": suggestions,
+            "note": "Type any model id this provider accepts. Suggestions come from existing configs/*.yaml.",
+            "free_text": True,
+        }
+
+    _models_cache[cache_key] = payload
+    return payload
 
 
 # Ollama model management (local only)
