@@ -148,7 +148,10 @@ class EvalRequest(BaseModel):
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "version": "3.1.0"}
+    body: Dict[str, Any] = {"status": "ok", "version": "3.1.0"}
+    if os.getenv("PROMPTPRESSURE_LAUNCHER") == "1":
+        body["launcher"] = True
+    return body
 
 
 @app.post("/evaluate", dependencies=[Depends(require_auth)])
@@ -438,6 +441,14 @@ async def run_eval_background(run_id: str, config_dict: Dict[str, Any]):
     except Exception as e:
         logging.error(f"Run {run_id} failed: {e}")
         await bus.mark_completed(run_id, {"event": "error", "data": str(e)})
+
+
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+
+_frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
+if _frontend_dir.is_dir():
+    app.mount("/", StaticFiles(directory=str(_frontend_dir), html=True), name="frontend")
 
 
 if __name__ == "__main__":

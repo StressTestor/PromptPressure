@@ -185,3 +185,41 @@ def test_eval_sets_no_configs_present(client):
     ids = {e["id"] for e in r.json()}
     assert not any(i.endswith(".yaml") for i in ids)
     assert not any("config_" in i for i in ids)
+
+
+def test_health_no_launcher_field_by_default(client, monkeypatch):
+    monkeypatch.delenv("PROMPTPRESSURE_LAUNCHER", raising=False)
+    importlib.reload(api_module)
+    with TestClient(api_module.app) as c:
+        r = c.get("/health")
+    body = r.json()
+    assert body["status"] == "ok"
+    assert "launcher" not in body or body["launcher"] is False
+
+
+def test_health_launcher_true_when_env_set(monkeypatch):
+    monkeypatch.setenv("PROMPTPRESSURE_LAUNCHER", "1")
+    importlib.reload(api_module)
+    with TestClient(api_module.app) as c:
+        r = c.get("/health")
+    assert r.json().get("launcher") is True
+
+
+def test_static_root_serves_index_html(client, tmp_path, monkeypatch):
+    """When frontend/index.html exists, GET / returns the page."""
+    import pathlib
+    frontend = pathlib.Path("frontend")
+    frontend.mkdir(exist_ok=True)
+    idx = frontend / "index.html"
+    idx_existed = idx.exists()
+    if not idx_existed:
+        idx.write_text("<html><body>placeholder</body></html>")
+    try:
+        importlib.reload(api_module)
+        with TestClient(api_module.app) as c:
+            r = c.get("/")
+        assert r.status_code == 200
+        assert "html" in r.headers.get("content-type", "").lower()
+    finally:
+        if not idx_existed:
+            idx.unlink()
