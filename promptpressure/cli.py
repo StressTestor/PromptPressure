@@ -113,9 +113,15 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
             real_adapter_name = adapter_name
             adapter_fn = load_adapter(adapter_name)
 
-    # Create DB Evaluation record (strip secrets from snapshot)
+    # Create DB Evaluation record. Strip secrets from snapshot via a
+    # broader denylist than just api_key/secret/token/password -- credential
+    # names show up as BEARER, AUTH, PRIVATE_KEY, CREDENTIAL, SESSION, etc.
+    _SECRET_SUBSTRINGS = (
+        "api_key", "apikey", "secret", "token", "password", "passwd",
+        "bearer", "auth", "credential", "private", "session", "cookie",
+    )
     safe_config = {k: v for k, v in config.items() if not any(
-        secret in k.lower() for secret in ("api_key", "secret", "token", "password")
+        s in k.lower() for s in _SECRET_SUBSTRINGS
     ) and not k.startswith("_")}
     async for session in get_db_session(engine):
         db_eval = Evaluation(
