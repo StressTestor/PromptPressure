@@ -336,6 +336,28 @@ async def list_models(provider: str):
     return payload
 
 
+@app.get("/eval-sets")
+async def list_eval_sets():
+    cache_key = "eval_sets"
+    if cache_key in _eval_sets_cache:
+        return _eval_sets_cache[cache_key]
+
+    out: List[Dict[str, Any]] = []
+    for path in sorted(glob.glob("evals_*.json")):
+        try:
+            with open(path) as f:
+                entries = json.load(f)
+            count = len(entries) if isinstance(entries, list) else 0
+        except Exception as e:
+            logging.warning("Failed to parse %s: %s", path, e)
+            count = 0
+        label = path.removeprefix("evals_").removesuffix(".json").replace("_", " ").title()
+        out.append({"id": path, "label": label, "count": count})
+
+    _eval_sets_cache[cache_key] = out
+    return out
+
+
 # Ollama model management (local only)
 @app.get("/ollama/health")
 async def ollama_health():

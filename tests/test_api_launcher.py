@@ -155,3 +155,33 @@ def test_models_mock_returns_free_text(client):
     assert r.status_code == 200
     body = r.json()
     assert body["free_text"] is True
+
+
+def test_eval_sets_lists_dataset_files(client):
+    from promptpressure.api import _eval_sets_cache
+    _eval_sets_cache.clear()
+    r = client.get("/eval-sets")
+    assert r.status_code == 200
+    body = r.json()
+    ids = {e["id"] for e in body}
+    assert "evals_dataset.json" in ids
+    assert "evals_tone_sycophancy.json" in ids
+
+
+def test_eval_sets_includes_count(client):
+    from promptpressure.api import _eval_sets_cache
+    _eval_sets_cache.clear()
+    r = client.get("/eval-sets")
+    body = r.json()
+    main = next(e for e in body if e["id"] == "evals_dataset.json")
+    assert main["count"] >= 1
+
+
+def test_eval_sets_no_configs_present(client):
+    """Configs MUST NOT appear in /eval-sets (Finding #3 → A)."""
+    from promptpressure.api import _eval_sets_cache
+    _eval_sets_cache.clear()
+    r = client.get("/eval-sets")
+    ids = {e["id"] for e in r.json()}
+    assert not any(i.endswith(".yaml") for i in ids)
+    assert not any("config_" in i for i in ids)
