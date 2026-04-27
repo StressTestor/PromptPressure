@@ -20,10 +20,12 @@ Provider batch support (direct API, no proxy):
 - groq/ollama/lmstudio: no batch API, real-time only
 """
 
-import os
-import json
-import io
 import asyncio
+import io
+import json
+import logging
+import os
+
 import httpx
 
 
@@ -84,65 +86,92 @@ _MODEL_PROVIDER_MAP = {
 
 
 class CostTracker:
-    """Tracks per-model cost using litellm's pricing data."""
+    """Tracks per-model cost using litellm's pricing data.
+
+    Concurrent eval coroutines call record_from_usage; mutations are
+    guarded by a lock since `dict[k]['total'] += x` is read-modify-write
+    and not atomic under the GIL for compound expressions.
+    """
 
     def __init__(self):
         self.costs = {}
+        self._lock = asyncio.Lock()
+        self._litellm_warned = False
 
-    def record(self, model, response):
+    def _warn_litellm_missing_once(self):
+        if not self._litellm_warned:
+            logging.warning(
+                "litellm not installed; cost tracking disabled. "
+                "Install with: pip install litellm"
+            )
+            self._litellm_warned = True
+
+    def _compute_cost(self, model, prompt_tokens, completion_tokens):
+        """Return cost in USD or None on failure. Logs failures, doesn't raise."""
+        try:
+            input_cost, output_cost = litellm.cost_per_token(
+                model=model,
+                prompt_tokens=int(prompt_tokens or 0),
+                completion_tokens=int(completion_tokens or 0),
+            )
+            return input_cost + output_cost
+        except Exception as exc:
+            logging.warning("cost calc failed for model=%s: %s", model, exc)
+            return None
+
+    async def record(self, model, response):
         """Record cost from a litellm response object or raw usage dict."""
         if not LITELLM_AVAILABLE:
+            self._warn_litellm_missing_once()
             return
 
-        if model not in self.costs:
-            self.costs[model] = {"input_cost": 0.0, "output_cost": 0.0, "total": 0.0, "requests": 0}
+        usage = None
+        if hasattr(response, "usage"):
+            usage = response.usage
+        elif isinstance(response, dict) and "usage" in response:
+            usage = response["usage"]
 
-        try:
-            usage = None
-            if hasattr(response, "usage"):
-                usage = response.usage
-            elif isinstance(response, dict) and "usage" in response:
-                usage = response["usage"]
+        if not usage:
+            return
 
-            if usage:
-                prompt_tokens = getattr(usage, "prompt_tokens", None) or usage.get("prompt_tokens", 0)
-                completion_tokens = getattr(usage, "completion_tokens", None) or usage.get("completion_tokens", 0)
+        prompt_tokens = getattr(usage, "prompt_tokens", None) or (
+            usage.get("prompt_tokens", 0) if isinstance(usage, dict) else 0
+        )
+        completion_tokens = getattr(usage, "completion_tokens", None) or (
+            usage.get("completion_tokens", 0) if isinstance(usage, dict) else 0
+        )
+        await self.record_from_usage(model, prompt_tokens, completion_tokens)
 
-                cost = litellm.completion_cost(
-                    model=model,
-                    prompt=str(prompt_tokens),
-                    completion=str(completion_tokens),
-                )
-                self.costs[model]["total"] += cost
-                self.costs[model]["requests"] += 1
-        except Exception:
-            self.costs[model]["requests"] += 1
-
-    def record_from_usage(self, model, prompt_tokens, completion_tokens):
+    async def record_from_usage(self, model, prompt_tokens, completion_tokens):
         """Record cost from raw token counts."""
         if not LITELLM_AVAILABLE:
+            self._warn_litellm_missing_once()
             return
 
-        if model not in self.costs:
-            self.costs[model] = {"input_cost": 0.0, "output_cost": 0.0, "total": 0.0, "requests": 0}
+        cost = self._compute_cost(model, prompt_tokens, completion_tokens)
 
-        try:
-            cost = litellm.completion_cost(
-                model=model,
-                prompt=str(prompt_tokens),
-                completion=str(completion_tokens),
+        async with self._lock:
+            entry = self.costs.setdefault(
+                model, {"total": 0.0, "requests": 0, "cost_failures": 0}
             )
-            self.costs[model]["total"] += cost
-            self.costs[model]["requests"] += 1
-        except Exception:
-            self.costs[model]["requests"] += 1
+            entry["requests"] += 1
+            if cost is None:
+                entry["cost_failures"] += 1
+            else:
+                entry["total"] += cost
 
     def summary(self):
         """Return cost summary dict."""
         total = sum(v["total"] for v in self.costs.values())
         return {
-            "per_model": {k: {"cost_usd": round(v["total"], 6), "requests": v["requests"]}
-                          for k, v in self.costs.items()},
+            "per_model": {
+                k: {
+                    "cost_usd": round(v["total"], 6),
+                    "requests": v["requests"],
+                    "cost_failures": v.get("cost_failures", 0),
+                }
+                for k, v in self.costs.items()
+            },
             "total_cost_usd": round(total, 6),
         }
 
