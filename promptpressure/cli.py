@@ -8,7 +8,8 @@ import csv
 import traceback
 import time
 import asyncio
-from datetime import datetime
+import logging
+from datetime import datetime, timezone
 from uuid import uuid4
 from dotenv import load_dotenv
 
@@ -28,6 +29,50 @@ from promptpressure.batch import CostTracker, should_use_realtime, run_batch
 from promptpressure.run_log import RunLog
 from promptpressure.resilience import is_retryable, classify_error, retry_with_backoff
 from promptpressure.grading import post_analyze_groq, post_analyze_openrouter
+
+_REASONING_GETTERS = (
+    ("deepseek_r1_adapter", "get_last_reasoning"),
+    ("litellm_adapter", "get_last_reasoning"),
+    ("openrouter_adapter", "get_last_reasoning"),
+)
+
+
+def _try_get_reasoning() -> str:
+    """Probe known adapters for reasoning tokens. Returns "" if none have any.
+
+    Adapter-not-installed (ImportError) and helper-not-defined (AttributeError)
+    are expected and silent. Other exceptions are logged so a refactor that
+    breaks the helper doesn't silently strip reasoning data from every result.
+    """
+    for module_name, attr in _REASONING_GETTERS:
+        try:
+            mod = __import__(
+                f"promptpressure.adapters.{module_name}", fromlist=[attr]
+            )
+            value = getattr(mod, attr)()
+            if value:
+                return value
+        except (ImportError, AttributeError):
+            continue
+        except Exception as exc:
+            logging.warning(
+                "reasoning getter %s.%s raised %s: %s",
+                module_name, attr, type(exc).__name__, exc,
+            )
+    return ""
+
+
+def _try_get_metadata() -> dict:
+    """Probe litellm adapter for multi-agent metadata. Returns {} if missing."""
+    try:
+        from promptpressure.adapters.litellm_adapter import get_last_metadata
+        return get_last_metadata() or {}
+    except ImportError:
+        return {}
+    except Exception as exc:
+        logging.warning("metadata getter raised %s: %s", type(exc).__name__, exc)
+        return {}
+
 
 def log_error(output_dir, error_msg):
     log_path = os.path.join(output_dir, "error.log")
@@ -50,8 +95,8 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
         turn_delay: Seconds between turns in multi-turn sequences.
         max_retries: Max retries on retryable errors (429, 503).
     """
-    # Load prompts
-    dataset_file = config.get("dataset", "evals_dataset.json")
+    # Load prompts. abspath for the same cwd-drift reason as output_dir.
+    dataset_file = os.path.abspath(config.get("dataset", "evals_dataset.json"))
     with open(dataset_file, "r", encoding="utf-8") as f:
         prompts = json.load(f)
 
@@ -126,7 +171,7 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
     async for session in get_db_session(engine):
         db_eval = Evaluation(
             id=str(uuid4()),
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             config_snapshot=json.loads(json.dumps(safe_config, default=str)),
             status="running"
         )
@@ -253,18 +298,8 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
             )
             success = True
 
-            # Capture reasoning tokens if adapter supports it (e.g. DeepSeek R1, litellm)
-            try:
-                from promptpressure.adapters.deepseek_r1_adapter import get_last_reasoning
-                reasoning = get_last_reasoning()
-            except (ImportError, Exception):
-                pass
-            if not reasoning:
-                try:
-                    from promptpressure.adapters.litellm_adapter import get_last_reasoning as litellm_reasoning
-                    reasoning = litellm_reasoning()
-                except (ImportError, Exception):
-                    pass
+            # Capture reasoning tokens if adapter supports it
+            reasoning = _try_get_reasoning()
 
             # Track cost from litellm usage data
             try:
@@ -324,13 +359,9 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
             result_data["reasoning"] = reasoning
 
         # capture multi-agent metadata (grok sub-agent routing, etc)
-        try:
-            from promptpressure.adapters.litellm_adapter import get_last_metadata
-            agent_meta = get_last_metadata()
-            if agent_meta:
-                result_data["agent_metadata"] = agent_meta
-        except (ImportError, Exception):
-            pass
+        agent_meta = _try_get_metadata()
+        if agent_meta:
+            result_data["agent_metadata"] = agent_meta
 
         await emit_event("end_prompt", {
             "id": entry.get("id"),
@@ -403,18 +434,7 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
                 )
 
                 # Capture reasoning tokens if available
-                turn_reasoning = ""
-                try:
-                    from promptpressure.adapters.deepseek_r1_adapter import get_last_reasoning
-                    turn_reasoning = get_last_reasoning()
-                except (ImportError, Exception):
-                    pass
-                if not turn_reasoning:
-                    try:
-                        from promptpressure.adapters.litellm_adapter import get_last_reasoning as litellm_reasoning
-                        turn_reasoning = litellm_reasoning()
-                    except (ImportError, Exception):
-                        pass
+                turn_reasoning = _try_get_reasoning()
 
                 # Track cost from litellm usage data
                 try:
@@ -577,26 +597,42 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
     tasks = [process_with_progress(p) for p in prompts]
     processed_results = await asyncio.gather(*tasks)
     pbar.close()
-    
-    # Filter valid results
-    results = [r for r in processed_results if r]
 
-    # Write CSV/JSON output for backward compatibility
+    # Filter valid results; log how many entries returned None (no prompt)
+    results = [r for r in processed_results if r]
+    dropped = len(processed_results) - len(results)
+    if dropped:
+        print(f"  warning: {dropped} entries returned no result (missing prompt/input field)")
+
+    # Write CSV/JSON output for backward compatibility.
+    # Failed entries are now included in the CSV with empty response and an
+    # error column so downstream tooling can see what was attempted.
     csv_filename = config.get("output", "results.csv")
     csv_path = os.path.join(output_dir, csv_filename)
     json_path = os.path.splitext(csv_path)[0] + ".json"
 
     with open(csv_path, "w", newline="", encoding="utf-8") as out_csv:
         writer = csv.writer(out_csv)
-        writer.writerow(["id", "prompt", "response", "model", "is_simulation", "multi_turn", "turns_completed"])
+        writer.writerow([
+            "id", "prompt", "response", "model", "is_simulation",
+            "multi_turn", "turns_completed", "success", "error",
+        ])
         for r in results:
-            if r["success"]:
-                prompt_out = json.dumps(r["prompt"]) if isinstance(r["prompt"], list) else r["prompt"]
-                writer.writerow([r["id"], prompt_out, r["response"], r["model"], r["is_simulation"],
-                                r.get("multi_turn", False), r.get("turns_completed", 1)])
+            prompt_out = json.dumps(r["prompt"]) if isinstance(r["prompt"], list) else r["prompt"]
+            writer.writerow([
+                r["id"], prompt_out, r.get("response", ""), r["model"],
+                r["is_simulation"], r.get("multi_turn", False),
+                r.get("turns_completed", 1), r.get("success", False),
+                r.get("error") or "",
+            ])
 
-    with open(json_path, "w", encoding="utf-8") as out_json:
-        json.dump(results, out_json, indent=2)
+    try:
+        with open(json_path, "w", encoding="utf-8") as out_json:
+            json.dump(results, out_json, indent=2, default=str)
+    except (TypeError, ValueError) as exc:
+        # one un-serializable object would otherwise leave a corrupted file
+        print(f"  warning: results JSON write failed ({exc}); CSV is authoritative")
+        log_error(output_dir, f"results JSON serialization failed: {exc}")
 
     # Save metrics
     if collect_metrics:
@@ -758,7 +794,12 @@ async def main_async():
     if not args.multi_config:
         parser.error("--multi-config is required unless --schema or a subcommand is used")
 
-    start_metrics_server()
+    # Metrics server is observability, not load-bearing. Don't tank the eval
+    # if a stale dev process is holding the port.
+    try:
+        start_metrics_server()
+    except OSError as exc:
+        print(f"  warning: metrics server failed to start ({exc}); continuing without it")
 
     all_results = []
     output_dirs = []
