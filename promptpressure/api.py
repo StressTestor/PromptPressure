@@ -6,8 +6,9 @@ import hmac
 import hashlib
 import time
 from contextlib import asynccontextmanager
-from typing import Dict, Any, AsyncGenerator, Optional
+from typing import Dict, Any, AsyncGenerator, Optional, List
 
+from cachetools import TTLCache
 from fastapi import FastAPI, BackgroundTasks, HTTPException, Header, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, model_validator
@@ -26,6 +27,26 @@ if not os.getenv("PROMPTPRESSURE_API_SECRET") and os.getenv("PROMPTPRESSURE_DEV_
     )
 
 bus = RunBus()
+
+_providers_cache: TTLCache = TTLCache(maxsize=1, ttl=60)
+_models_cache: TTLCache = TTLCache(maxsize=64, ttl=60)
+_eval_sets_cache: TTLCache = TTLCache(maxsize=1, ttl=60)
+
+_PROVIDER_DEFS: List[Dict[str, Any]] = [
+    {"id": "mock", "label": "Mock (deterministic)"},
+    {"id": "ollama", "label": "Ollama (local)"},
+    {"id": "openrouter", "label": "OpenRouter", "env": "OPENROUTER_API_KEY"},
+    {"id": "groq", "label": "Groq", "env": "GROQ_API_KEY"},
+    {"id": "openai", "label": "OpenAI", "env": "OPENAI_API_KEY"},
+    {"id": "deepseek", "label": "DeepSeek (via OpenRouter)", "env": "OPENROUTER_API_KEY"},
+    {"id": "claude_code", "label": "Claude Code", "env": "ANTHROPIC_API_KEY"},
+    {"id": "opencode", "label": "OpenCode (CLI)"},
+    {"id": "lmstudio", "label": "LM Studio (local)"},
+    {"id": "litellm", "label": "LiteLLM (multi-provider)",
+     "env_any": ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY",
+                 "XAI_API_KEY", "GROQ_API_KEY", "GOOGLE_API_KEY",
+                 "DEEPSEEK_API_KEY", "LITELLM_API_KEY"]},
+]
 
 
 @asynccontextmanager
@@ -213,6 +234,55 @@ async def get_diagnostics():
     }
 
     return {"status": "ok", "checks": checks}
+
+
+async def _provider_status(definition: Dict[str, Any]) -> Dict[str, Any]:
+    pid = definition["id"]
+    out: Dict[str, Any] = {"id": pid, "label": definition["label"], "available": False, "reason": None}
+
+    if pid == "mock":
+        out["available"] = True
+        return out
+
+    if pid == "ollama":
+        from promptpressure.adapters import ollama_adapter
+        try:
+            healthy = await ollama_adapter.check_health()
+        except Exception:
+            healthy = False
+        out["available"] = healthy
+        out["reason"] = None if healthy else "ollama not reachable on http://localhost:11434"
+        return out
+
+    if "env" in definition:
+        env = definition["env"]
+        if os.getenv(env):
+            out["available"] = True
+        else:
+            out["reason"] = f"{env} not set"
+        return out
+
+    if "env_any" in definition:
+        present = [e for e in definition["env_any"] if os.getenv(e)]
+        if present:
+            out["available"] = True
+        else:
+            out["reason"] = f"none of {definition['env_any']} are set"
+        return out
+
+    # opencode / lmstudio: no env to check
+    out["available"] = True
+    return out
+
+
+@app.get("/providers")
+async def list_providers():
+    cache_key = "providers"
+    if cache_key in _providers_cache:
+        return _providers_cache[cache_key]
+    result = [await _provider_status(d) for d in _PROVIDER_DEFS]
+    _providers_cache[cache_key] = result
+    return result
 
 
 # Ollama model management (local only)

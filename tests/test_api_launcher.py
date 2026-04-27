@@ -87,3 +87,30 @@ def test_evaluate_with_config_dict_returns_run_id(client, monkeypatch):
 def test_stream_unknown_run_id_returns_404(client):
     r = client.get("/stream/does-not-exist")
     assert r.status_code == 404
+
+
+def test_providers_returns_list(client):
+    r = client.get("/providers")
+    assert r.status_code == 200
+    body = r.json()
+    ids = {p["id"] for p in body}
+    assert {"ollama", "openrouter", "groq", "mock", "litellm",
+            "openai", "deepseek", "claude_code", "opencode", "lmstudio"} >= ids
+    assert {"ollama", "mock"} <= ids
+
+
+def test_providers_mock_always_available(client):
+    r = client.get("/providers")
+    mock_entry = next(p for p in r.json() if p["id"] == "mock")
+    assert mock_entry["available"] is True
+
+
+def test_providers_groq_unavailable_without_key(client, monkeypatch):
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    # Bust the cache
+    from promptpressure.api import _providers_cache
+    _providers_cache.clear()
+    r = client.get("/providers")
+    groq_entry = next(p for p in r.json() if p["id"] == "groq")
+    assert groq_entry["available"] is False
+    assert "GROQ_API_KEY" in (groq_entry.get("reason") or "")
