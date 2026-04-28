@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "promptpressure"
-version = "3.0.0"
+version = "3.1.0"
 description = "Behavioral eval for LLM refusal sensitivity, tone consistency, and psychological reasoning"
 authors = [
   { name = "Joeseph Grey" },
@@ -43,6 +43,7 @@ litellm = [
 
 [project.scripts]
 promptpressure = "promptpressure.cli:main"
+pp = "promptpressure.launcher:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
