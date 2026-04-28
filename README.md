@@ -34,6 +34,29 @@ promptpressure --tier full --multi-config configs/config_openrouter_gpt_oss_20b_
 
 ---
 
+## launcher
+
+one command. three dropdowns. one button.
+
+```bash
+pip install -e .
+pp
+```
+
+`pp` starts the API on `127.0.0.1` (first free port in 8000-8019) and opens a browser. pick a provider, model, and an eval set. hit Run. output streams into the status panel.
+
+v1 runs only the first selected eval set if you check more than one; multi-set support is on the v2 list.
+
+binds 127.0.0.1 only. for remote access, run `uvicorn promptpressure.api:app --host 0.0.0.0` with `PROMPTPRESSURE_API_SECRET` set.
+
+stop with Ctrl-C in the terminal that started `pp`. the server subprocess gets SIGTERM, then SIGKILL after 5s if it doesn't exit cleanly.
+
+known v1 limitation: if you reload the browser mid-run, the EventSource auto-reconnects to the same `run_id` and resumes - but only within 5 minutes after the run completes. after that, the run state has been cleaned up. check `/evaluations/{run_id}` for completed runs.
+
+`pp --help` and `pp --version` work as expected.
+
+---
+
 ## what it evaluates
 
 | category | count | what it tests |
