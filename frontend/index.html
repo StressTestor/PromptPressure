@@ -28,12 +28,16 @@
         <select id="provider" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2"></select>
       </div>
 
-      <div>
-        <label for="model" class="block text-sm font-medium mb-1">Model</label>
-        <input id="model" list="model-suggestions" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 hidden" />
-        <select id="model-select" class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 hidden"></select>
+      <div role="group" aria-labelledby="model-label">
+        <span id="model-label" class="block text-sm font-medium mb-1">Model</span>
+        <input id="model" list="model-suggestions"
+               aria-labelledby="model-label"
+               class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 hidden" />
+        <select id="model-select"
+                aria-labelledby="model-label"
+                class="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 hidden"></select>
         <datalist id="model-suggestions"></datalist>
-        <p id="model-note" class="text-xs text-slate-500 mt-1"></p>
+        <p id="model-note" class="text-xs text-slate-500 mt-1" aria-live="polite"></p>
       </div>
 
       <fieldset>
@@ -43,6 +47,7 @@
 
       <div class="flex gap-2">
         <button id="run-btn" type="submit"
+                aria-busy="false"
                 class="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 px-4 py-2 rounded font-medium">
           Run
         </button>
@@ -57,7 +62,10 @@
       <h2 class="text-sm font-medium text-slate-300 mb-2">Status</h2>
       <pre id="status-panel"
            class="bg-slate-800 border border-slate-700 rounded p-3 text-xs whitespace-pre-wrap min-h-32 max-h-96 overflow-auto"
-           aria-live="polite"></pre>
+           role="log"
+           aria-live="off"
+           aria-relevant="additions"
+           aria-label="Run status log"></pre>
     </section>
   </main>
 
