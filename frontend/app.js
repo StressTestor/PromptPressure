@@ -46,6 +46,21 @@
     els.empty.classList.remove("hidden");
   }
 
+  function addJsonEventListener(eventSource, name, prefix) {
+    eventSource.addEventListener(name, (ev) => {
+      let parsed = ev.data;
+      try { parsed = JSON.stringify(JSON.parse(ev.data)); } catch (_) {}
+      appendLine(prefix + parsed);
+    });
+  }
+
+  function closeStream() {
+    if (currentEventSource) {
+      currentEventSource.close();
+      currentEventSource = null;
+    }
+  }
+
   async function fetchJSON(url, { signal, timeoutMs = 15000 } = {}) {
     const timeoutSignal = AbortSignal.timeout(timeoutMs);
     const composedSignal = signal
@@ -224,34 +239,44 @@
     }
 
     appendLine(`run_id=${body.run_id} streaming…`);
-    if (currentEventSource) { currentEventSource.close(); }
+    closeStream();
+
+    if (typeof body.stream_url !== "string" || body.stream_url.length === 0) {
+      appendLine("evaluate returned no stream_url; aborting", { error: true });
+      els.runBtn.disabled = false;
+      return;
+    }
 
     currentEventSource = new EventSource(body.stream_url);
+
     currentEventSource.onmessage = (ev) => {
       let parsed = ev.data;
       try { parsed = JSON.stringify(JSON.parse(ev.data)); } catch (_) {}
       appendLine(parsed);
     };
-    currentEventSource.addEventListener("start_prompt", (ev) => {
-      let parsed = ev.data;
-      try { parsed = "start: " + JSON.stringify(JSON.parse(ev.data)); } catch (_) {}
-      appendLine(parsed);
-    });
-    currentEventSource.addEventListener("end_prompt", (ev) => {
-      let parsed = ev.data;
-      try { parsed = "end:   " + JSON.stringify(JSON.parse(ev.data)); } catch (_) {}
-      appendLine(parsed);
-    });
+
+    addJsonEventListener(currentEventSource, "start_prompt", "start: ");
+    addJsonEventListener(currentEventSource, "end_prompt",   "end:   ");
+
     currentEventSource.addEventListener("complete", (ev) => {
       appendLine("complete: " + ev.data);
-      currentEventSource.close();
+      closeStream();
       els.runBtn.disabled = false;
     });
+
     currentEventSource.addEventListener("error", (ev) => {
-      const data = ev.data || "(connection error)";
-      appendLine("error: " + data, { error: true });
-      currentEventSource.close();
-      els.runBtn.disabled = false;
+      // EventSource fires the native `error` event for transport-level failures
+      // (network drop, server reset) — in that case ev.data is undefined and the
+      // browser will auto-reconnect unless we close. Server-emitted `event:error`
+      // frames carry a data payload and should terminate the stream.
+      if (ev.data) {
+        appendLine("error: " + ev.data, { error: true });
+        closeStream();
+        els.runBtn.disabled = false;
+      } else {
+        // Transport hiccup — log once and let EventSource retry.
+        appendLine("connection lost, retrying…", { error: true });
+      }
     });
   }
 
