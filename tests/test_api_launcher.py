@@ -251,3 +251,99 @@ def test_static_root_serves_index_html(client, tmp_path, monkeypatch):
     finally:
         if not idx_existed:
             idx.unlink()
+
+
+@pytest.mark.asyncio
+async def test_run_eval_background_publishes_error_on_systemexit(monkeypatch):
+    """Regression: cli.py's `sys.exit(1)` (e.g., 'Tier matched 0 entries') raises
+    SystemExit, which is BaseException — not caught by `except Exception`. The
+    background task crashed silently, the SSE stream stayed open with no events,
+    and the frontend hung on 'streaming…' until the user clicked Cancel.
+
+    Verify the broadened `except (Exception, SystemExit)` now catches it and
+    publishes event:error with a descriptive payload."""
+    import promptpressure.api as api
+
+    async def fake_suite(config_dict, adapter):
+        import sys
+        sys.exit(1)
+    monkeypatch.setattr(api, "run_evaluation_suite", fake_suite)
+
+    api.bus.start("test-systemexit")
+    await api.run_eval_background("test-systemexit", {"adapter": "mock"})
+
+    entry = api.bus._runs["test-systemexit"]
+    assert entry["completed"] is True
+    completion = entry["completion_event"]
+    assert completion["event"] == "error"
+    assert "1" in completion["data"], (
+        f"error data should mention exit code; got: {completion['data']!r}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_run_eval_background_json_encodes_dict_payloads(monkeypatch):
+    """Regression: SSE data was published as Python dict, then sse-starlette
+    serialized via str() yielding Python repr {'k': 'v'} (single-quoted) instead
+    of valid JSON. Frontend's JSON.parse(ev.data) silently fell back to raw
+    string display, showing Python repr in the status panel.
+
+    Verify the log_callback now JSON-encodes dict/list payloads so the SSE
+    `data:` field is parseable JSON."""
+    import promptpressure.api as api
+    import json as _json
+
+    async def fake_suite(config_dict, adapter):
+        cb = config_dict["_callback"]
+        await cb("start_prompt", {"id": "tc_001", "prompt": "x"})
+        await cb("end_prompt", {"id": "tc_001", "success": True, "latency": 0.5})
+
+    monkeypatch.setattr(api, "run_evaluation_suite", fake_suite)
+
+    api.bus.start("test-json-encode")
+    await api.run_eval_background("test-json-encode", {"adapter": "mock"})
+
+    entry = api.bus._runs["test-json-encode"]
+    events = []
+    while not entry["queue"].empty():
+        events.append(entry["queue"].get_nowait())
+
+    # Find the start_prompt + end_prompt events
+    start_evt = next(e for e in events if e["event"] == "start_prompt")
+    end_evt = next(e for e in events if e["event"] == "end_prompt")
+
+    # data must be a JSON string, not a dict
+    assert isinstance(start_evt["data"], str), (
+        f"start_prompt data must be JSON string; got {type(start_evt['data']).__name__}"
+    )
+    parsed = _json.loads(start_evt["data"])
+    assert parsed["id"] == "tc_001"
+    assert parsed["prompt"] == "x"
+
+    parsed_end = _json.loads(end_evt["data"])
+    assert parsed_end["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_run_eval_background_passes_string_payloads_through(monkeypatch):
+    """JSON-encoding must only fire for dict/list — string payloads (e.g., the
+    'progress' callback that emits '1/45') should pass through unchanged so the
+    frontend doesn't see double-encoded strings."""
+    import promptpressure.api as api
+
+    async def fake_suite(config_dict, adapter):
+        cb = config_dict["_callback"]
+        await cb("progress", "1/45")
+
+    monkeypatch.setattr(api, "run_evaluation_suite", fake_suite)
+
+    api.bus.start("test-string-passthrough")
+    await api.run_eval_background("test-string-passthrough", {"adapter": "mock"})
+
+    entry = api.bus._runs["test-string-passthrough"]
+    events = []
+    while not entry["queue"].empty():
+        events.append(entry["queue"].get_nowait())
+
+    progress_evt = next(e for e in events if e["event"] == "progress")
+    assert progress_evt["data"] == "1/45"  # not '"1/45"'

@@ -458,15 +458,29 @@ async def install_plugin(request: InstallPluginRequest):
 
 async def run_eval_background(run_id: str, config_dict: Dict[str, Any]):
     async def log_callback(event_type: str, data: Any):
+        # JSON-encode dict/list payloads so SSE clients can parse cleanly.
+        # sse-starlette serializes via str() by default, which yields Python repr
+        # for dicts (single-quoted), breaking the frontend's JSON.parse(ev.data).
+        if isinstance(data, (dict, list)):
+            data = json.dumps(data, default=str)
         await bus.publish(run_id, {"event": event_type, "data": data})
 
     try:
         config_dict["_callback"] = log_callback
         await run_evaluation_suite(config_dict, config_dict.get("adapter"))
         await bus.mark_completed(run_id, {"event": "complete", "data": "Evaluation finished"})
-    except Exception as e:
-        logging.error(f"Run {run_id} failed: {e}")
-        await bus.mark_completed(run_id, {"event": "error", "data": str(e)})
+    except (Exception, SystemExit) as e:
+        # SystemExit is BaseException, not Exception — without catching it
+        # explicitly, sys.exit() inside the eval pipeline (e.g., cli.py's
+        # "Tier matched 0 entries" path) escaped the background task silently
+        # and the SSE stream hung forever. Now any exit propagates as an
+        # event:error frame so the frontend can surface it and unlock the form.
+        if isinstance(e, SystemExit):
+            msg = f"Eval task exited with code {e.code}"
+        else:
+            msg = str(e) or repr(e) or type(e).__name__
+        logging.error(f"Run {run_id} failed: {msg}", exc_info=True)
+        await bus.mark_completed(run_id, {"event": "error", "data": msg})
 
 
 from pathlib import Path
