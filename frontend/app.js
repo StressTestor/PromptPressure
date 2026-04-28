@@ -16,6 +16,7 @@
     runBtn: $("run-btn"),
     cancelBtn: $("cancel-btn"),
     statusPanel: $("status-panel"),
+    emptyHints: $("empty-hints"),
   };
 
   let providers = [];
@@ -43,7 +44,13 @@
     els.statusPanel.replaceChildren();
   }
 
-  function renderEmptyState(_allProviders) {
+  function renderEmptyState(allProviders) {
+    els.emptyHints.replaceChildren();
+    for (const p of allProviders) {
+      const li = document.createElement("li");
+      li.textContent = `${p.label}: ${p.remediation_hint}`;
+      els.emptyHints.appendChild(li);
+    }
     els.empty.classList.remove("hidden");
   }
 

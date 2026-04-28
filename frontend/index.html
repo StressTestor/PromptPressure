@@ -16,8 +16,10 @@
 
     <section id="loading" class="text-slate-400" aria-live="polite">Loading providers and datasets…</section>
 
-    <section id="empty" class="hidden text-amber-400" aria-live="polite">
-      No providers reachable. Set <code>OPENROUTER_API_KEY</code> or start ollama, then refresh.
+    <section id="empty" class="hidden text-amber-400 space-y-2" role="alert" aria-live="assertive">
+      <p class="font-medium">No providers reachable.</p>
+      <ul id="empty-hints" class="list-disc list-inside text-sm space-y-1"></ul>
+      <p class="text-sm text-slate-400">Fix one of the above, then refresh.</p>
     </section>
 
     <form id="run-form" class="hidden space-y-4">
