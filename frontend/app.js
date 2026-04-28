@@ -42,6 +42,10 @@
     els.statusPanel.replaceChildren();
   }
 
+  function renderEmptyState(_allProviders) {
+    els.empty.classList.remove("hidden");
+  }
+
   async function fetchJSON(url, { signal, timeoutMs = 15000 } = {}) {
     const timeoutSignal = AbortSignal.timeout(timeoutMs);
     const composedSignal = signal
@@ -53,28 +57,38 @@
   }
 
   async function init() {
+    let provs, sets;
     try {
-      const [provs, sets] = await Promise.all([
+      [provs, sets] = await Promise.all([
         fetchJSON("/providers"),
         fetchJSON("/eval-sets"),
       ]);
-      providers = provs;
-      evalSets = sets;
     } catch (e) {
       els.loading.textContent = "Failed to load: " + e.message;
       return;
     }
 
-    const available = providers.filter((p) => p.available);
+    const available = provs.filter((p) => p.available);
     if (available.length === 0) {
       els.loading.classList.add("hidden");
-      els.empty.classList.remove("hidden");
+      renderEmptyState(provs);  // stub here; Task 8 fills it in
       return;
     }
 
     populateProviders(available);
-    populateEvalSets(evalSets);
+    populateEvalSets(sets);
     await onProviderChange();
+
+    // onProviderChange may have failed; only reveal the form if a model list
+    // is now visible. Otherwise the user sees the loading message + the
+    // modelNote error, and can refresh.
+    const hasModels = state.freeText
+      ? els.modelDatalist.children.length > 0 || els.model.classList.contains("hidden") === false
+      : els.modelSelect.children.length > 0;
+    if (!hasModels && els.modelNote.textContent.startsWith("Failed")) {
+      els.loading.textContent = "Provider loaded but model list failed: " + els.modelNote.textContent;
+      return;
+    }
 
     els.loading.classList.add("hidden");
     els.form.classList.remove("hidden");
