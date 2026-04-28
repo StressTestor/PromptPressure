@@ -82,11 +82,12 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.version:
-        try:
-            from importlib.metadata import version
-            print(version("promptpressure"))
-        except Exception:
-            print("unknown")
+        # Read from promptpressure.__version__ (single source of truth, defined
+        # in __init__.py). Earlier code looked up importlib.metadata.version()
+        # by distribution name, which broke when the dist was renamed from
+        # 'promptpressure' to 'promptpressure-evals' on PyPI.
+        from promptpressure import __version__
+        print(__version__)
         return 0
 
     existing = probe_existing_launcher(PORT_RANGE)

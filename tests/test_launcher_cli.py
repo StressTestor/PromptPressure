@@ -79,3 +79,20 @@ def test_probe_existing_launcher_skips_non_launcher_servers():
     with patch.object(httpx, "get", side_effect=mock_get):
         port = probe_existing_launcher((8000, 8001))
     assert port is None
+
+
+def test_pp_version_prints_package_version(capsys):
+    """Regression: launcher.py:87 used `importlib.metadata.version('promptpressure')`
+    which returned 'unknown' once the distribution was renamed to
+    'promptpressure-evals' on PyPI. Switch to reading promptpressure.__version__
+    so version reporting is decoupled from distribution name."""
+    from promptpressure import __version__
+    from promptpressure.launcher import main
+
+    with patch("sys.argv", ["pp", "--version"]):
+        rc = main()
+
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert captured.out.strip() == __version__
+    assert "unknown" not in captured.out

@@ -97,7 +97,7 @@ async def lifespan(app: FastAPI):
         await bus.stop_reaper()
 
 
-app = FastAPI(title="PromptPressure API", version="3.2.0", lifespan=lifespan)
+app = FastAPI(title="PromptPressure API", version="3.2.1", lifespan=lifespan)
 
 _default_origins = ["http://localhost:3000", "http://localhost:8000",
                     "http://127.0.0.1:3000", "http://127.0.0.1:8000"]
@@ -165,7 +165,7 @@ class EvalRequest(BaseModel):
 
 @app.get("/health")
 async def health_check():
-    body: Dict[str, Any] = {"status": "ok", "version": "3.2.0"}
+    body: Dict[str, Any] = {"status": "ok", "version": "3.2.1"}
     if os.getenv("PROMPTPRESSURE_LAUNCHER") == "1":
         body["launcher"] = True
     return body
