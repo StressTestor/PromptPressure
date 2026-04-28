@@ -1,0 +1,119 @@
+/*
+ * Hand-rolled minimal CSS covering the ~50 Tailwind utility classes used by
+ * the launcher (frontend/index.html + app.js). Replaces the vendored Play CDN
+ * tailwind.js JIT bundle which printed a "should not be used in production"
+ * warning on every page load.
+ *
+ * Color values are Tailwind v3 defaults. If you add a Tailwind class to the
+ * markup, add a matching rule here. The full class set the launcher uses is
+ * documented at the top of each section.
+ *
+ * To regenerate the class list: see docs/superpowers/plans/2026-04-28-frontend-fixes.md
+ * (or run `grep -oE 'class="[^"]*"' frontend/index.html | tr ' ' '\n' | sort -u`).
+ */
+
+/* ---------- reset / base (subset of Tailwind preflight) ---------- */
+
+*, *::before, *::after { box-sizing: border-box; border-width: 0; border-style: solid; }
+html, body { margin: 0; padding: 0; }
+body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.5; }
+h1, h2, h3, h4, h5, h6, p { margin: 0; font-size: inherit; font-weight: inherit; }
+button { font-family: inherit; font-size: inherit; cursor: pointer; background: transparent; padding: 0; }
+button:disabled { cursor: not-allowed; }
+input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; background-color: transparent; }
+ul, ol { padding-left: 0; margin: 0; }
+fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+legend { padding: 0; }
+pre { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", "Oxygen Mono", "Ubuntu Mono", monospace; }
+
+/* ---------- layout: flex, block, hidden, items-center, gap, mx-auto ---------- */
+
+.flex { display: flex; }
+.block { display: block; }
+.hidden { display: none; }
+.items-center { align-items: center; }
+.gap-2 { gap: 0.5rem; }
+.mx-auto { margin-left: auto; margin-right: auto; }
+
+/* ---------- sizing: max-w-3xl, w-full, min-h-screen, min-h-32, max-h-96 ---------- */
+
+.max-w-3xl { max-width: 48rem; }
+.w-full { width: 100%; }
+.min-h-screen { min-height: 100vh; }
+.min-h-32 { min-height: 8rem; }
+.max-h-96 { max-height: 24rem; }
+
+/* ---------- padding: p-3, p-6, px-3, px-4, py-2 ---------- */
+
+.p-3 { padding: 0.75rem; }
+.p-6 { padding: 1.5rem; }
+.px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+.px-4 { padding-left: 1rem; padding-right: 1rem; }
+.py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+
+/* ---------- margin: mb-1, mb-2, mt-1 ---------- */
+
+.mb-1 { margin-bottom: 0.25rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mt-1 { margin-top: 0.25rem; }
+
+/* ---------- space-y-N: vertical spacing between flex/block children ---------- */
+/* > * + * selector matches every child after the first, applying margin-top */
+
+.space-y-1 > * + * { margin-top: 0.25rem; }
+.space-y-2 > * + * { margin-top: 0.5rem; }
+.space-y-4 > * + * { margin-top: 1rem; }
+.space-y-6 > * + * { margin-top: 1.5rem; }
+
+/* ---------- typography ---------- */
+
+.text-xs { font-size: 0.75rem; line-height: 1rem; }
+.text-sm { font-size: 0.875rem; line-height: 1.25rem; }
+.text-2xl { font-size: 1.5rem; line-height: 2rem; }
+.font-medium { font-weight: 500; }
+.font-bold { font-weight: 700; }
+.whitespace-pre-wrap { white-space: pre-wrap; }
+
+/* ---------- colors: backgrounds ---------- */
+
+.bg-slate-700 { background-color: rgb(51 65 85); }
+.bg-slate-800 { background-color: rgb(30 41 59); }
+.bg-slate-900 { background-color: rgb(15 23 42); }
+.bg-emerald-600 { background-color: rgb(5 150 105); }
+
+/* ---------- colors: text ---------- */
+
+.text-slate-100 { color: rgb(241 245 249); }
+.text-slate-300 { color: rgb(203 213 225); }
+.text-slate-400 { color: rgb(148 163 184); }
+.text-slate-500 { color: rgb(100 116 139); }
+.text-amber-400 { color: rgb(251 191 36); }
+.text-red-400 { color: rgb(248 113 113); }
+
+/* ---------- borders + radius ---------- */
+
+.border { border-width: 1px; border-style: solid; }
+.border-slate-700 { border-color: rgb(51 65 85); }
+.rounded { border-radius: 0.25rem; }
+
+/* ---------- list utilities ---------- */
+
+.list-disc { list-style-type: disc; }
+.list-inside { list-style-position: inside; }
+
+/* ---------- overflow ---------- */
+
+.overflow-auto { overflow: auto; }
+
+/* ---------- accent (checkboxes/radios) ---------- */
+
+.accent-emerald-500 { accent-color: rgb(16 185 129); }
+
+/* ---------- pseudo-class variants ---------- */
+
+.hover\:bg-emerald-500:hover { background-color: rgb(16 185 129); }
+.hover\:bg-slate-600:hover { background-color: rgb(71 85 105); }
+
+.disabled\:bg-slate-700:disabled { background-color: rgb(51 65 85); }
+.disabled\:bg-slate-800:disabled { background-color: rgb(30 41 59); }
+.disabled\:text-slate-500:disabled { color: rgb(100 116 139); }
