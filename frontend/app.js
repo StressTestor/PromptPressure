@@ -14,6 +14,7 @@
     modelNote: $("model-note"),
     evalSets: $("eval-sets"),
     runBtn: $("run-btn"),
+    cancelBtn: $("cancel-btn"),
     statusPanel: $("status-panel"),
   };
 
@@ -59,6 +60,21 @@
       currentEventSource.close();
       currentEventSource = null;
     }
+  }
+
+  function setRunning(running) {
+    // All form inputs go disabled while a run is streaming so the visible config
+    // matches the actual running job. Cancel becomes available; Run goes disabled
+    // (the user can't submit again until cancel or complete).
+    els.provider.disabled = running;
+    els.model.disabled = running;
+    els.modelSelect.disabled = running;
+    for (const cb of els.evalSets.querySelectorAll("input[type=checkbox]")) {
+      cb.disabled = running;
+    }
+    els.runBtn.disabled = running;
+    els.runBtn.setAttribute("aria-busy", running ? "true" : "false");
+    els.cancelBtn.classList.toggle("hidden", !running);
   }
 
   async function fetchJSON(url, { signal, timeoutMs = 15000 } = {}) {
@@ -109,6 +125,11 @@
     els.form.classList.remove("hidden");
     els.provider.addEventListener("change", onProviderChange);
     els.form.addEventListener("submit", onSubmit);
+    els.cancelBtn.addEventListener("click", () => {
+      closeStream();
+      appendLine("cancelled by user", { error: true });
+      setRunning(false);
+    });
   }
 
   function populateProviders(list) {
@@ -214,7 +235,7 @@
     if (!model) { appendLine("Pick or type a model.", { error: true }); return; }
     if (ids.length === 0) { appendLine("Pick at least one eval set.", { error: true }); return; }
 
-    els.runBtn.disabled = true;
+    setRunning(true);
     clearStatusPanel();
     appendLine(`POST /evaluate provider=${provider} model=${model} eval_sets=${ids.join(",")}`);
 
@@ -234,7 +255,7 @@
       body = await r.json();
     } catch (e) {
       appendLine("evaluate failed: " + e.message, { error: true });
-      els.runBtn.disabled = false;
+      setRunning(false);
       return;
     }
 
@@ -243,7 +264,7 @@
 
     if (typeof body.stream_url !== "string" || body.stream_url.length === 0) {
       appendLine("evaluate returned no stream_url; aborting", { error: true });
-      els.runBtn.disabled = false;
+      setRunning(false);
       return;
     }
 
@@ -261,7 +282,7 @@
     currentEventSource.addEventListener("complete", (ev) => {
       appendLine("complete: " + ev.data);
       closeStream();
-      els.runBtn.disabled = false;
+      setRunning(false);
     });
 
     currentEventSource.addEventListener("error", (ev) => {
@@ -272,7 +293,7 @@
       if (ev.data) {
         appendLine("error: " + ev.data, { error: true });
         closeStream();
-        els.runBtn.disabled = false;
+        setRunning(false);
       } else {
         // Transport hiccup — log once and let EventSource retry.
         appendLine("connection lost, retrying…", { error: true });
