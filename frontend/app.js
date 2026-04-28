@@ -21,17 +21,20 @@
   let evalSets = [];
   let currentEventSource = null;
 
-  function append(line) {
-    els.statusPanel.textContent += (els.statusPanel.textContent ? "\n" : "") + line;
+  function appendLine(text, opts = {}) {
+    const isError = opts.error === true;
+    const line = document.createElement(isError ? "span" : "div");
+    if (isError) line.className = "text-red-400";
+    // Always own newline rendering — pre + whitespace-pre-wrap turns each child's
+    // textContent into a visual line. We add an explicit \n inside the element so
+    // copy-paste from the panel preserves line breaks.
+    line.textContent = (els.statusPanel.children.length ? "\n" : "") + text;
+    els.statusPanel.appendChild(line);
     els.statusPanel.scrollTop = els.statusPanel.scrollHeight;
   }
 
-  function appendError(msg) {
-    const span = document.createElement("span");
-    span.className = "text-red-400";
-    span.textContent = (els.statusPanel.textContent ? "\n" : "") + msg;
-    els.statusPanel.appendChild(span);
-    els.statusPanel.scrollTop = els.statusPanel.scrollHeight;
+  function clearStatusPanel() {
+    els.statusPanel.replaceChildren();
   }
 
   async function fetchJSON(url) {
@@ -152,12 +155,12 @@
     const provider = els.provider.value;
     const model = selectedModel().trim();
     const ids = selectedEvalSetIds();
-    if (!model) { appendError("Pick or type a model."); return; }
-    if (ids.length === 0) { appendError("Pick at least one eval set."); return; }
+    if (!model) { appendLine("Pick or type a model.", { error: true }); return; }
+    if (ids.length === 0) { appendLine("Pick at least one eval set.", { error: true }); return; }
 
     els.runBtn.disabled = true;
-    els.statusPanel.textContent = "";
-    append(`POST /evaluate provider=${provider} model=${model} eval_sets=${ids.join(",")}`);
+    clearStatusPanel();
+    appendLine(`POST /evaluate provider=${provider} model=${model} eval_sets=${ids.join(",")}`);
 
     let body;
     try {
@@ -174,38 +177,38 @@
       }
       body = await r.json();
     } catch (e) {
-      appendError("evaluate failed: " + e.message);
+      appendLine("evaluate failed: " + e.message, { error: true });
       els.runBtn.disabled = false;
       return;
     }
 
-    append(`run_id=${body.run_id} streaming…`);
+    appendLine(`run_id=${body.run_id} streaming…`);
     if (currentEventSource) { currentEventSource.close(); }
 
     currentEventSource = new EventSource(body.stream_url);
     currentEventSource.onmessage = (ev) => {
       let parsed = ev.data;
       try { parsed = JSON.stringify(JSON.parse(ev.data)); } catch (_) {}
-      append(parsed);
+      appendLine(parsed);
     };
     currentEventSource.addEventListener("start_prompt", (ev) => {
       let parsed = ev.data;
       try { parsed = "start: " + JSON.stringify(JSON.parse(ev.data)); } catch (_) {}
-      append(parsed);
+      appendLine(parsed);
     });
     currentEventSource.addEventListener("end_prompt", (ev) => {
       let parsed = ev.data;
       try { parsed = "end:   " + JSON.stringify(JSON.parse(ev.data)); } catch (_) {}
-      append(parsed);
+      appendLine(parsed);
     });
     currentEventSource.addEventListener("complete", (ev) => {
-      append("complete: " + ev.data);
+      appendLine("complete: " + ev.data);
       currentEventSource.close();
       els.runBtn.disabled = false;
     });
     currentEventSource.addEventListener("error", (ev) => {
       const data = ev.data || "(connection error)";
-      appendError("error: " + data);
+      appendLine("error: " + data, { error: true });
       currentEventSource.close();
       els.runBtn.disabled = false;
     });
