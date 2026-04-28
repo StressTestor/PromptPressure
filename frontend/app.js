@@ -19,8 +19,6 @@
     emptyHints: $("empty-hints"),
   };
 
-  let providers = [];
-  let evalSets = [];
   let currentEventSource = null;
 
   const state = {
