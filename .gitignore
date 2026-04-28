@@ -9,3 +9,8 @@ venv/
 .env
 *.egg-info/
 .gstack/
+
+# packaging artifacts
+dist/
+build/
+*.egg-info/

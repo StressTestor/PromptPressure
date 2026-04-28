@@ -3,16 +3,29 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "promptpressure"
-version = "3.1.0"
-description = "Behavioral eval for LLM refusal sensitivity, tone consistency, and psychological reasoning"
+name = "promptpressure-evals"
+version = "3.2.0"
+description = "Multi-turn behavioral drift detection for LLMs — tone, sycophancy, refusal sensitivity, persona stability"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
   { name = "Joeseph Grey" },
 ]
+keywords = ["llm", "evaluation", "benchmark", "behavioral", "ai-safety", "red-team", "fastapi"]
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Testing",
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Operating System :: OS Independent",
+    "Framework :: FastAPI",
 ]
 requires-python = ">=3.10"
 dependencies = [
@@ -36,10 +49,17 @@ dependencies = [
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
+    "build>=1.0",
+    "twine>=4.0",
 ]
 litellm = [
     "litellm[proxy]>=1.80",
 ]
+
+[project.urls]
+Homepage = "https://github.com/StressTestor/PromptPressure"
+Repository = "https://github.com/StressTestor/PromptPressure"
+Issues = "https://github.com/StressTestor/PromptPressure/issues"
 
 [project.scripts]
 promptpressure = "promptpressure.cli:main"
@@ -48,6 +68,19 @@ pp = "promptpressure.launcher:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["promptpressure*"]
+
+[tool.setuptools.package-data]
+# Ship templates AND the launcher frontend (HTML/CSS/JS) so pip-installed
+# copies find static assets at runtime. api.py resolves the frontend dir
+# via Path(__file__).resolve().parent / "frontend" which works for both
+# source-tree and site-packages installs.
+promptpressure = [
+    "templates/*.html",
+    "templates/*.md",
+    "frontend/*.html",
+    "frontend/*.js",
+    "frontend/*.css",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

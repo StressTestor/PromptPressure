@@ -12,14 +12,27 @@ most eval frameworks measure accuracy on known-answer datasets. PromptPressure m
 
 ---
 
-## quick start in 60 seconds
+## install
+
+```bash
+pip install promptpressure-evals
+```
+
+distribution name is `promptpressure-evals` (the `promptpressure` slot on PyPI is held by an unrelated red-team scanner). import name and CLI entry points are unchanged: `import promptpressure`, `pp`, `promptpressure`.
+
+source install for hacking:
 
 ```bash
 git clone https://github.com/StressTestor/PromptPressure.git
 cd PromptPressure
 pip install -e .
+```
 
-cp .env.example .env
+## quick start in 60 seconds
+
+```bash
+pip install promptpressure-evals
+cp .env.example .env  # if you cloned the repo; otherwise create one
 # add your API keys (see .env.example for which adapters need what)
 
 promptpressure --quick --multi-config configs/config_mock.yaml
@@ -39,7 +52,7 @@ promptpressure --tier full --multi-config configs/config_openrouter_gpt_oss_20b_
 one command. three dropdowns. one button.
 
 ```bash
-pip install -e .
+pip install promptpressure-evals
 pp
 ```
 

@@ -97,7 +97,7 @@ async def lifespan(app: FastAPI):
         await bus.stop_reaper()
 
 
-app = FastAPI(title="PromptPressure API", version="3.1.0", lifespan=lifespan)
+app = FastAPI(title="PromptPressure API", version="3.2.0", lifespan=lifespan)
 
 _default_origins = ["http://localhost:3000", "http://localhost:8000",
                     "http://127.0.0.1:3000", "http://127.0.0.1:8000"]
@@ -165,7 +165,7 @@ class EvalRequest(BaseModel):
 
 @app.get("/health")
 async def health_check():
-    body: Dict[str, Any] = {"status": "ok", "version": "3.1.0"}
+    body: Dict[str, Any] = {"status": "ok", "version": "3.2.0"}
     if os.getenv("PROMPTPRESSURE_LAUNCHER") == "1":
         body["launcher"] = True
     return body
@@ -486,7 +486,11 @@ async def run_eval_background(run_id: str, config_dict: Dict[str, Any]):
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 
-_frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
+# Frontend lives inside the package so pip-installed copies still find it.
+# The Path(__file__).parent path resolves to the installed location at runtime
+# (site-packages/promptpressure/frontend/) and the source tree location
+# (<repo>/promptpressure/frontend/) interchangeably.
+_frontend_dir = Path(__file__).resolve().parent / "frontend"
 if _frontend_dir.is_dir():
     app.mount("/", StaticFiles(directory=str(_frontend_dir), html=True), name="frontend")
 
