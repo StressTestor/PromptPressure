@@ -19,8 +19,33 @@ def test_single_dataset_basic():
     assert settings["model_name"] == "llama3.2:1b"
     assert settings["dataset"] == "evals_dataset.json"
     assert settings["output"] == "launcher_abc-123.csv"
-    assert settings["tier"] == "quick"
+    assert settings["tier"] == "full"
     assert settings["temperature"] == 0.7
+
+
+def test_launcher_tier_runs_untagged_datasets():
+    """Regression: launcher previously hardcoded tier='quick', which filtered out
+    100% of untagged datasets (entries default to tier='full' in tier.py).
+    Verify launcher tier choice + filter_by_tier compose correctly so untagged
+    data runs end-to-end."""
+    from promptpressure.tier import filter_by_tier
+
+    # Simulate evals_tone_sycophancy.json: 45 entries, none tier-tagged
+    untagged_entries = [{"id": f"e{i}", "prompt": "x"} for i in range(45)]
+
+    req = LauncherRequest(
+        provider="mock",
+        model="mock-test",
+        eval_set_ids=["evals_tone_sycophancy.json"],
+    )
+    settings = launcher_to_settings_dict(req, run_id="regression-001")
+
+    filtered, skipped = filter_by_tier(untagged_entries, settings["tier"])
+    assert len(filtered) == 45, (
+        f"launcher tier='{settings['tier']}' filters untagged data to "
+        f"{len(filtered)}/45 — must include untagged entries"
+    )
+    assert skipped == 0
 
 
 def test_multi_dataset_uses_first_with_note():

@@ -60,5 +60,9 @@ def launcher_to_settings_dict(req: LauncherRequest, run_id: str) -> dict:
         "output": f"launcher_{run_id}.csv",
         "output_dir": "outputs",
         "temperature": 0.7,
-        "tier": "quick",
+        # Default to "full" so untagged datasets (entries default to tier="full"
+        # in tier.py) run end-to-end when the user hits Run. tier="quick" filtered
+        # out 100% of untagged sets like evals_tone_sycophancy.json. CLI users
+        # who want a fast subset still pass --tier quick explicitly.
+        "tier": "full",
     }
