@@ -37,8 +37,12 @@
     els.statusPanel.replaceChildren();
   }
 
-  async function fetchJSON(url) {
-    const r = await fetch(url);
+  async function fetchJSON(url, { signal, timeoutMs = 15000 } = {}) {
+    const timeoutSignal = AbortSignal.timeout(timeoutMs);
+    const composedSignal = signal
+      ? AbortSignal.any([signal, timeoutSignal])
+      : timeoutSignal;
+    const r = await fetch(url, { signal: composedSignal });
     if (!r.ok) throw new Error(`${url} → ${r.status}`);
     return r.json();
   }
