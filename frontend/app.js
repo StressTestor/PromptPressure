@@ -21,6 +21,11 @@
   let evalSets = [];
   let currentEventSource = null;
 
+  const state = {
+    freeText: false,
+    modelsAbort: null,  // AbortController for the currently in-flight /models fetch
+  };
+
   function appendLine(text, opts = {}) {
     const isError = opts.error === true;
     const line = document.createElement(isError ? "span" : "div");
@@ -115,27 +120,44 @@
 
   async function onProviderChange() {
     const provider = els.provider.value;
+
+    // Abort any previous /models fetch so a slow earlier switch can't race with
+    // the current one and leave the wrong models on screen.
+    if (state.modelsAbort) state.modelsAbort.abort();
+    state.modelsAbort = new AbortController();
+
+    // Clear current model UI immediately so the user can't submit a stale value
+    // while the new fetch is in flight, and lock Run.
+    els.modelSelect.replaceChildren();
+    els.modelDatalist.replaceChildren();
+    els.model.value = "";
+    els.modelNote.textContent = "Loading models…";
+    els.runBtn.disabled = true;
+
     let payload;
     try {
-      payload = await fetchJSON(`/models?provider=${encodeURIComponent(provider)}`);
+      payload = await fetchJSON(
+        `/models?provider=${encodeURIComponent(provider)}`,
+        { signal: state.modelsAbort.signal },
+      );
     } catch (e) {
+      if (e.name === "AbortError") return;  // superseded by a newer call — silent
       els.modelNote.textContent = "Failed to load models: " + e.message;
-      return;
+      return;  // Run stays disabled; user sees the error in modelNote
     }
-    if (payload.free_text) {
+
+    state.freeText = payload.free_text === true;
+    if (state.freeText) {
       els.modelSelect.classList.add("hidden");
       els.model.classList.remove("hidden");
-      els.modelDatalist.innerHTML = "";
       for (const m of payload.models || []) {
         const o = document.createElement("option");
         o.value = m;
         els.modelDatalist.appendChild(o);
       }
-      els.model.value = "";
     } else {
       els.model.classList.add("hidden");
       els.modelSelect.classList.remove("hidden");
-      els.modelSelect.innerHTML = "";
       for (const m of payload.models || []) {
         const o = document.createElement("option");
         o.value = m;
@@ -144,10 +166,11 @@
       }
     }
     els.modelNote.textContent = payload.note || "";
+    els.runBtn.disabled = false;
   }
 
   function selectedModel() {
-    return els.model.classList.contains("hidden") ? els.modelSelect.value : els.model.value;
+    return state.freeText ? els.model.value : els.modelSelect.value;
   }
 
   function selectedEvalSetIds() {
