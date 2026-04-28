@@ -26,6 +26,8 @@
     modelsAbort: null,  // AbortController for the currently in-flight /models fetch
   };
 
+  const MODELS_LOAD_FAIL_PREFIX = "Failed to load models: ";
+
   function appendLine(text, opts = {}) {
     const isError = opts.error === true;
     const line = document.createElement(isError ? "span" : "div");
@@ -107,7 +109,7 @@
     const available = provs.filter((p) => p.available);
     if (available.length === 0) {
       els.loading.classList.add("hidden");
-      renderEmptyState(provs);  // stub here; Task 8 fills it in
+      renderEmptyState(provs);
       return;
     }
 
@@ -121,7 +123,7 @@
     const hasModels = state.freeText
       ? els.modelDatalist.children.length > 0 || els.model.classList.contains("hidden") === false
       : els.modelSelect.children.length > 0;
-    if (!hasModels && els.modelNote.textContent.startsWith("Failed")) {
+    if (!hasModels && els.modelNote.textContent.startsWith(MODELS_LOAD_FAIL_PREFIX)) {
       els.loading.textContent = "Provider loaded but model list failed: " + els.modelNote.textContent;
       return;
     }
@@ -196,8 +198,8 @@
         { signal: state.modelsAbort.signal },
       );
     } catch (e) {
-      if (e.name === "AbortError") return;  // superseded by a newer call — silent
-      els.modelNote.textContent = "Failed to load models: " + e.message;
+      if (e.name === "AbortError") return;  // user switched provider mid-fetch — silent. (Timeouts throw TimeoutError and fall through to the user-facing branch below.)
+      els.modelNote.textContent = MODELS_LOAD_FAIL_PREFIX + e.message;
       return;  // Run stays disabled; user sees the error in modelNote
     }
 
@@ -237,8 +239,8 @@
     const provider = els.provider.value;
     const model = selectedModel().trim();
     const ids = selectedEvalSetIds();
-    if (!model) { appendLine("Pick or type a model.", { error: true }); return; }
-    if (ids.length === 0) { appendLine("Pick at least one eval set.", { error: true }); return; }
+    if (!model) { clearStatusPanel(); appendLine("Pick or type a model.", { error: true }); return; }
+    if (ids.length === 0) { clearStatusPanel(); appendLine("Pick at least one eval set.", { error: true }); return; }
 
     setRunning(true);
     clearStatusPanel();
@@ -291,11 +293,11 @@
     });
 
     currentEventSource.addEventListener("error", (ev) => {
-      // EventSource fires the native `error` event for transport-level failures
-      // (network drop, server reset) — in that case ev.data is undefined and the
-      // browser will auto-reconnect unless we close. Server-emitted `event:error`
-      // frames carry a data payload and should terminate the stream.
-      if (ev.data) {
+      // Transport-level failures (network drop, server reset) fire a plain Event;
+      // EventSource will auto-reconnect unless we close it. Server-emitted
+      // `event:error` frames arrive as MessageEvent and should terminate the stream
+      // even if their data payload is empty.
+      if (ev instanceof MessageEvent) {
         appendLine("error: " + ev.data, { error: true });
         closeStream();
         setRunning(false);
