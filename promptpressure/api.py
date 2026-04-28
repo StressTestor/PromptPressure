@@ -53,6 +53,23 @@ _PROVIDER_DEFS: List[Dict[str, Any]] = [
 
 _VALID_PROVIDERS = {p["id"] for p in _PROVIDER_DEFS}
 
+PROVIDER_REMEDIATION_HINTS: dict[str, str] = {
+    "openrouter": "Set OPENROUTER_API_KEY in your environment.",
+    "ollama": "Start the ollama daemon: `ollama serve` (or run `ollama run <model>`).",
+    "openai": "Set OPENAI_API_KEY in your environment.",
+    "groq": "Set GROQ_API_KEY in your environment.",
+    "deepseek": "Set OPENROUTER_API_KEY in your environment (DeepSeek routes via OpenRouter).",
+    "claude_code": "Set ANTHROPIC_API_KEY in your environment.",
+    "opencode": "Install the opencode CLI and ensure it is on your PATH.",
+    "lmstudio": "Start LM Studio and enable the local server (default: http://localhost:1234).",
+    "litellm": "Set at least one provider API key (ANTHROPIC_API_KEY, OPENAI_API_KEY, OPENROUTER_API_KEY, etc.).",
+    "mock": "No configuration required — mock provider is always available.",
+    # staged: anthropic and gemini providers not yet in _PROVIDER_DEFS;
+    # kept here so they're ready when added.
+    "anthropic": "Set ANTHROPIC_API_KEY in your environment.",
+    "gemini": "Set GEMINI_API_KEY in your environment.",
+}
+
 
 def _suggestions_from_configs(provider: str) -> List[str]:
     """Aggregate model: values across configs/*.yaml filtered by adapter:."""
@@ -263,7 +280,16 @@ async def get_diagnostics():
 
 async def _provider_status(definition: Dict[str, Any]) -> Dict[str, Any]:
     pid = definition["id"]
-    out: Dict[str, Any] = {"id": pid, "label": definition["label"], "available": False, "reason": None}
+    out: Dict[str, Any] = {
+        "id": pid,
+        "label": definition["label"],
+        "available": False,
+        "reason": None,
+        "remediation_hint": PROVIDER_REMEDIATION_HINTS.get(
+            pid,
+            f"Configure {pid} (see project README).",
+        ),
+    }
 
     if pid == "mock":
         out["available"] = True

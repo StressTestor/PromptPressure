@@ -205,6 +205,34 @@ def test_health_launcher_true_when_env_set(monkeypatch):
     assert r.json().get("launcher") is True
 
 
+def test_providers_include_remediation_hint(client):
+    """Each provider entry must include a remediation_hint string for the UI to render."""
+    r = client.get("/providers")
+    assert r.status_code == 200
+    payload = r.json()
+    assert isinstance(payload, list) and len(payload) > 0
+    for p in payload:
+        assert "remediation_hint" in p, f"missing remediation_hint on {p['id']}"
+        assert isinstance(p["remediation_hint"], str)
+        assert len(p["remediation_hint"]) > 0
+
+
+def test_openrouter_remediation_hint_exact(client):
+    """Pin the exact spec string for openrouter so edits don't silently break it."""
+    r = client.get("/providers")
+    openrouter = next(p for p in r.json() if p["id"] == "openrouter")
+    assert openrouter["remediation_hint"] == "Set OPENROUTER_API_KEY in your environment."
+
+
+@pytest.mark.asyncio
+async def test_provider_status_fallback_hint():
+    """Fallback hint format is correct for unknown provider IDs."""
+    from promptpressure.api import _provider_status
+    defn = {"id": "unknown_provider", "label": "Unknown"}
+    result = await _provider_status(defn)
+    assert result["remediation_hint"] == "Configure unknown_provider (see project README)."
+
+
 def test_static_root_serves_index_html(client, tmp_path, monkeypatch):
     """When frontend/index.html exists, GET / returns the page."""
     import pathlib
