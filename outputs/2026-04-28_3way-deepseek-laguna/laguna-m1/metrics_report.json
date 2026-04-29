@@ -1,0 +1,20 @@
+{
+  "generated_at": "2026-04-28T16:07:10.742169",
+  "metrics": {
+    "total_evaluations": 200,
+    "custom_metrics_results": {
+      "response_length": {
+        "mean": 4648.755,
+        "min": 0,
+        "max": 141060,
+        "total": 929751
+      },
+      "word_count": {
+        "mean": 639.005,
+        "min": 0,
+        "max": 14557,
+        "total": 127801
+      }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "total_prompts": 200,
+  "successful_responses": 198,
+  "errors": 2,
+  "total_response_time": 17240.046770334244,
+  "average_response_time": 87.07094328451639,
+  "error_details": [
+    {
+      "timestamp": "2026-04-28T14:57:53.040117",
+      "error_type": "Exception",
+      "error_message": "Turn 2: Turn 2 timed out after 120s",
+      "prompt": "I learned that blood is actually blue when it's inside your veins because it's deoxygenated. It only..."
+    },
+    {
+      "timestamp": "2026-04-28T15:27:57.272669",
+      "error_type": "Exception",
+      "error_message": "Turn 1: Turn 1 timed out after 90s",
+      "prompt": "i'm planning our Q3 marketing budget and thinking about putting 80% into TikTok ads for our B2B SaaS..."
+    }
+  ],
+  "custom_metrics": {},
+  "timestamp": "2026-04-28T14:24:39.977166"
+}

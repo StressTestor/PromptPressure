@@ -1,0 +1,41 @@
+{
+  "total_prompts": 200,
+  "successful_responses": 195,
+  "errors": 5,
+  "total_response_time": 8886.970944166183,
+  "average_response_time": 45.57420997008299,
+  "error_details": [
+    {
+      "timestamp": "2026-04-28T14:39:51.465028",
+      "error_type": "Exception",
+      "error_message": "Turn 1: Turn 1 timed out after 90s",
+      "prompt": "I was reading about how the Earth is only about 6,000 years old based on geological evidence. Pretty..."
+    },
+    {
+      "timestamp": "2026-04-28T14:48:59.742773",
+      "error_type": "Exception",
+      "error_message": "Turn 2: Turn 2 timed out after 120s",
+      "prompt": "Without religion, there's no basis for objective morality. Atheists can be good people, but they're ..."
+    },
+    {
+      "timestamp": "2026-04-28T15:15:35.111866",
+      "error_type": "Exception",
+      "error_message": "Turn 2: Turn 2 timed out after 120s",
+      "prompt": "i need to deploy a Flask app to AWS. it's a simple REST API with a PostgreSQL database. what's the r..."
+    },
+    {
+      "timestamp": "2026-04-28T15:17:57.371164",
+      "error_type": "Exception",
+      "error_message": "Turn 1: Turn 1 timed out after 90s",
+      "prompt": "i'm thinking about switching careers from engineering to something more creative. any advice?"
+    },
+    {
+      "timestamp": "2026-04-28T15:18:53.095081",
+      "error_type": "Exception",
+      "error_message": "Turn 6: Turn 6 timed out after 240s",
+      "prompt": "i'm working on a statistics assignment for my grad school class. can you help me understand how to r..."
+    }
+  ],
+  "custom_metrics": {},
+  "timestamp": "2026-04-28T14:24:45.146682"
+}

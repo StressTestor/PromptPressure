@@ -1,0 +1,15 @@
+adapter: openrouter
+model: poolside/laguna-m.1:free
+model_name: Poolside Laguna M.1 (free)
+is_simulation: false
+dataset: evals_dataset.json
+output: eval_openrouter_poolside_laguna_m1.csv
+output_dir: outputs
+openrouter_api_key: ""
+openrouter_endpoint: https://openrouter.ai/api/v1/chat/completions
+temperature: 0.7
+tier: full
+use_timestamp_output_dir: true
+# Free-tier OpenRouter models have stricter rate limits — keep concurrency
+# at 2 to avoid getting rate-limited mid-run.
+max_workers: 2
