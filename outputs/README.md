@@ -4,40 +4,65 @@ eval run artifacts. everything here is part of the public reproducibility record
 
 ## directory schema
 
-### top-level files
+```
+outputs/
+├── _archive/              ← old timestamped runs, kept for history
+│   ├── 2026-03/           ← Mar 2026 runs (8 dirs, real eval data)
+│   ├── 2026-04-01/        ← Apr 1 2026 runs (13 dirs, real eval data)
+│   └── 2026-04-08/        ← Apr 8 2026 runs
+├── YYYY-MM-DD_descriptive-name/   ← current convention, one dir per published run
+└── README.md
+```
 
-| file | what it is |
-|------|-----------|
-| `aggregated_metrics.json` | cross-model aggregated scores from the most recent comparison run |
-| `metrics_report.json` | summary metrics (pass rates, category breakdowns) for the latest run |
-| `report.html` | rendered HTML report with charts and per-prompt detail |
-| `report.md` | markdown version of the same report |
+## naming convention going forward
 
-these four files get overwritten on every run. they reflect the last eval executed, not a cumulative history.
+**`YYYY-MM-DD_descriptive-name/`** — descriptive, not timestamp-only.
 
-### timestamped run directories
+example: `2026-04-28_3way-deepseek-laguna/` rather than `2026-04-28_17-04-11/`.
 
-format: `YYYY-MM-DD_HH-MM-SS/`
+names should let you tell at-a-glance what the run was about. timestamp-only dirs go to `_archive/` once they're no longer the active subject.
 
-each directory contains the full output of a single eval run:
+## what each run dir contains
 
 | file | what it is |
 |------|-----------|
 | `eval_<model>.json` | per-prompt results (prompt, response, latency, success, metadata) |
-| `eval_<model>.csv` | same data in CSV for quick inspection |
-| `metrics.json` | aggregated metrics for this specific run |
-| `run.jsonl` | structured request log (model, latency, cost, retries, errors per request) |
-| `cost.json` | token usage and cost tracking for the run |
-| `error.log` | any errors encountered during the run |
+| `eval_<model>.csv` | same data in csv |
+| `metrics.json` | aggregated metrics for this run |
+| `metrics_report.json` | summary metrics (pass rates, category breakdowns) |
+| `run.jsonl` | structured request log (model, latency, cost, retries per request) |
+| `cost.json` | token usage and cost tracking |
+| `error.log` | errors encountered during the run |
+| `report.html`, `report.md` | rendered per-run report |
+| `analysis/` | judge-output csvs and json from `pp judge` runs |
 
 not every run produces every file. `run.jsonl` and `cost.json` were added in v3.1.0.
 
-### per-model result directories
+## multi-model + multi-judge runs
 
-directories like `outputs_grok420/` or `outputs_mimo_omni/` follow the same schema but were generated in isolated runs targeting a specific model. the naming convention is `outputs_<model_shortname>/`.
+dirs that compare several models or apply more than one judge organize internally:
 
-## naming conventions
+```
+2026-04-28_3way-deepseek-laguna/
+├── FINAL.md, SCORES.md, RESULTS.md  ← writeups
+├── scored-aggregate.json            ← per-rubric % across all models (judge A)
+├── scored-aggregate-<judge>.json    ← per-rubric % across all models (judge B…)
+├── v4-pro/, v4-flash/, laguna-m1/   ← one subdir per model
+│   ├── eval_*.{csv,json}, metrics.json, report.{html,md}, run.jsonl
+│   └── analysis/
+│       ├── openrouter_scores_*.{csv,json}        ← judge A scores
+│       └── <judge>_scores_*.{csv,json}           ← judge B scores
+```
+
+## naming rules
 
 - model names in filenames use underscores: `eval_openrouter_haiku.json`
 - config names map to filenames: `config_openrouter_haiku.yaml` produces `eval_openrouter_haiku.*`
-- timestamps are UTC
+- timestamps are utc
+- judge-output prefixes follow the judge model: `openrouter_scores_*`, `sonnet46_scores_*`, etc.
+
+## what does *not* go here
+
+- root-level aggregated metrics or reports (those used to live here as `outputs/aggregated_metrics.json` etc, but they got overwritten on every run and were misleading — removed 2026-04-30)
+- launcher smoke tests (delete or never commit)
+- empty / error-only run dirs (delete; they're not data)
