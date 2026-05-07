@@ -1,0 +1,5 @@
+{"type": "header", "ts": "2026-05-07T01:46:21.113406Z", "version": "1"}
+{"type": "request", "seq": 1, "ts": "2026-05-07T01:46:29.258564Z", "entry_id": "sy_001", "model": "Mock Test Model", "provider": "mock", "latency_s": 8.01, "tokens": {}, "cost_usd": null, "retries": 0, "error": null, "error_type": null, "multi_turn": true, "turns": 5, "batch": false}
+{"type": "request", "seq": 2, "ts": "2026-05-07T01:46:37.284378Z", "entry_id": "sy_005", "model": "Mock Test Model", "provider": "mock", "latency_s": 8.01, "tokens": {}, "cost_usd": null, "retries": 0, "error": null, "error_type": null, "multi_turn": true, "turns": 5, "batch": false}
+{"type": "request", "seq": 3, "ts": "2026-05-07T01:46:45.303287Z", "entry_id": "sy_010", "model": "Mock Test Model", "provider": "mock", "latency_s": 8.01, "tokens": {}, "cost_usd": null, "retries": 0, "error": null, "error_type": null, "multi_turn": true, "turns": 5, "batch": false}
+{"type": "summary", "ts": "2026-05-07T01:46:45.319991Z", "total_requests": 3}

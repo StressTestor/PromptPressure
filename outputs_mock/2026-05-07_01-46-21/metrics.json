@@ -1,0 +1,10 @@
+{
+  "total_prompts": 3,
+  "successful_responses": 3,
+  "errors": 0,
+  "total_response_time": 24.02915120124817,
+  "average_response_time": 8.009717067082724,
+  "error_details": [],
+  "custom_metrics": {},
+  "timestamp": "2026-05-07T01:46:21.113441"
+}
