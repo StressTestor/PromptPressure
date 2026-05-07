@@ -1,0 +1,13 @@
+adapter: openrouter
+model: openrouter/owl-alpha
+model_name: openrouter/owl-alpha
+is_simulation: false
+dataset: evals_dataset.json
+output: eval_scores_output_openrouter_owl_alpha.csv
+output_dir: outputs
+openrouter_api_key: ""  # Uses OPENROUTER_API_KEY from environment
+openrouter_endpoint: https://openrouter.ai/api/v1/chat/completions
+temperature: 0.7
+tier: full
+use_timestamp_output_dir: true
+collect_metrics: true
