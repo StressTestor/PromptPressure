@@ -18,3 +18,6 @@ build/
 # local debate / scratch
 .debate/
 outputs/*.zip
+
+# drift suite run transcripts (reproducible via `pp run`, can be large)
+outputs/drift/
