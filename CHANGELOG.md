@@ -13,7 +13,7 @@ the credibility release: a multi-turn drift corpus plus a judge that reports its
 - first calibration run (deepseek-v4-flash as judge, 3 runs): judge-vs-human pooled kappa 0.41 (moderate, 95% CI [0.31, 0.50], n=324), test-retest pooled kappa 0.78, 0 parse failures. reported honestly as a pilot - gold labels are author reference annotations, not a multi-annotator panel.
 
 ### tests
-- 87 new tests covering the dimension vocabulary, calibration math (hand-verified against textbook kappa values), schema validation, judge parsing, runner, pipeline aggregation, CLI, and the native DeepSeek adapter. full suite: 286 passing.
+- 89 new tests covering the dimension vocabulary, calibration math (hand-verified against textbook kappa values), schema validation, judge parsing, runner, pipeline aggregation (incl. mismatched-coverage alignment), CLI, and the native DeepSeek adapter. full suite: 288 passing.
 
 ## 3.2.1 - 2026-04-28
 

@@ -80,7 +80,7 @@ PromptPressure/
 │   ├── index.html            # single-page launcher form
 │   ├── app.js                # provider/model/eval-set fetch + SSE client
 │   └── styles.css            # minimal overrides on top of Tailwind
-├── tests/                    # pytest suite (286 tests)
+├── tests/                    # pytest suite (288 tests)
 │   ├── conftest.py           # sets PROMPTPRESSURE_DEV_NO_AUTH=1 for all tests
 │   └── test_*.py             # unit + integration tests per module
 ├── configs/                  # per-run YAML configs (adapter, model, dataset, tiers)

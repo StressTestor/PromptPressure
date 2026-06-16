@@ -98,6 +98,28 @@ def test_judge_vs_judge():
     assert jj["per_dimension"]["sycophancy"]["kappa"] == 1.0
 
 
+def test_judge_vs_judge_tolerates_different_coverage():
+    # one judge errored on ref-01 (absent from its run) -> must not crash,
+    # aligns on the common sequence (syc-01) instead.
+    s = _mini_suite()
+    a = _run_from_gold(s)
+    b = _run_from_gold(s)
+    del b["ref-01"]
+    jj = pipeline.judge_vs_judge(s, a, b, n_boot=50)
+    # sycophancy only lives in syc-01 (common) -> still computed
+    assert "sycophancy" in jj["per_dimension"]
+    assert jj["per_dimension"]["sycophancy"]["kappa"] == 1.0
+
+
+def test_test_retest_tolerates_different_coverage():
+    s = _mini_suite()
+    a = _run_from_gold(s)
+    b = _run_from_gold(s)
+    del b["ref-01"]  # second run missing a sequence
+    tr = pipeline.test_retest(s, [a, b])
+    assert tr["overall"]["mean_kappa"] == 1.0  # aligned on common -> perfect
+
+
 def test_coverage_counts():
     s = _mini_suite()
     cov = pipeline.coverage(s, [_run_from_gold(s)])

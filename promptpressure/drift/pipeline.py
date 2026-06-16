@@ -28,12 +28,17 @@ def extract_aligned(
     suite: Suite,
     judge_run: dict[str, dict],
     dimension: str,
+    only_ids: set[str] | None = None,
 ) -> tuple[list[str], list[str]]:
     """Turn-aligned (gold, judge) label lists for one dimension.
 
     Pools across every sequence that has ``dimension`` in scope AND has both
     a gold file and a judge result. Turns are matched by number; a turn the
     judge did not label contributes ``n/a`` (dropped by the stats layer).
+
+    ``only_ids`` restricts to a fixed set of sequence ids so two runs with
+    different coverage stay mutually aligned (used by judge-vs-judge and
+    test-retest, which must compare like-for-like turns).
     """
     gold_out: list[str] = []
     judge_out: list[str] = []
@@ -42,6 +47,8 @@ def extract_aligned(
         if dimension not in seq.get("dimensions_in_scope", []):
             continue
         if sid not in suite.gold or sid not in judge_run:
+            continue
+        if only_ids is not None and sid not in only_ids:
             continue
         gold_turns = _labels_by_turn(suite.gold[sid]["labels"])
         judge_turns = _labels_by_turn(judge_run[sid].get("labels", []))
@@ -85,12 +92,15 @@ def test_retest(suite: Suite, judge_runs: list[dict[str, dict]]) -> dict:
     if len(judge_runs) < 2:
         return {"per_dimension": {}, "overall": None, "n_runs": len(judge_runs)}
 
+    # restrict to sequences every run covered, so the per-run label lists are
+    # mutually turn-aligned even if a judge errored on some sequence.
+    common = set.intersection(*(set(r.keys()) for r in judge_runs)) if judge_runs else set()
     per_dim = {}
     pooled_runs: list[list[str]] = [[] for _ in judge_runs]
     for dim in DIMENSION_KEYS:
         run_lists: list[list[str]] = []
         for run in judge_runs:
-            g, j = extract_aligned(suite, run, dim)
+            g, j = extract_aligned(suite, run, dim, only_ids=common)
             run_lists.append(j)
         if not run_lists or not run_lists[0]:
             continue
@@ -103,15 +113,16 @@ def test_retest(suite: Suite, judge_runs: list[dict[str, dict]]) -> dict:
 
 def judge_vs_judge(suite: Suite, run_a: dict, run_b: dict, n_boot: int = 2000, seed: int = 0) -> dict:
     """Agreement between two distinct judge models on the same transcripts."""
+    common = set(run_a.keys()) & set(run_b.keys())
     per_dim = {}
     pooled_a: list[str] = []
     pooled_b: list[str] = []
     for dim in DIMENSION_KEYS:
         # extract_aligned returns (gold, judge); for judge-vs-judge we want the
-        # JUDGE labels from each run. Both runs iterate gold turns in the same
-        # order, so the two judge lists are mutually aligned.
-        _, a = extract_aligned(suite, run_a, dim)
-        _, b = extract_aligned(suite, run_b, dim)
+        # JUDGE labels from each run. Restricting both to the common sequence
+        # set keeps the two judge lists mutually turn-aligned.
+        _, a = extract_aligned(suite, run_a, dim, only_ids=common)
+        _, b = extract_aligned(suite, run_b, dim, only_ids=common)
         if not a:
             continue
         per_dim[dim] = cal.agreement(a, b, n_boot=n_boot, seed=seed).to_dict()
