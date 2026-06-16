@@ -1,5 +1,27 @@
 # changelog
 
+## 3.2.1 - 2026-04-28
+
+### fixed
+- `pp --version` reads `__version__` from the package instead of dist metadata, so it reports correctly from a source checkout
+
+## 3.2.0 - 2026-04-28
+
+packaging + launcher release. distributed on PyPI as `promptpressure-evals` (the `promptpressure` name is held by an unrelated red-team scanner). import name and CLI entry points unchanged.
+
+### added
+- `pp` browser launcher: starts the API on the first free port in 8000-8019, opens a browser, three dropdowns (provider / model / eval set) + Run
+- launcher API surface: `/providers` (with availability detection + per-provider `remediation_hint`), `/models` (ollama dropdown + free-text fallback), `/eval-sets`, RunBus per-run event channel with reconnect + TTL reaper, XOR `launcher_request` schema on `/evaluate`
+- frontend: SSE status streaming, form lock during run + Cancel button, race-safe provider switch (AbortController), a11y (`role=log`, label association), `fetchJSON` timeout + signal composition
+
+### changed
+- vendored a 4.2KB hand-rolled `frontend/tailwind.css`, dropped the 398KB Tailwind Play CDN JIT bundle (offline, no runtime JS for styling)
+
+### fixed
+- launcher defaults tier to `full` so untagged datasets actually run (was exiting `0/N sequences selected`)
+- API publishes an error frame on `SystemExit` and JSON-encodes SSE data payloads
+- SSE handler distinguishes transport vs server errors; form reveal gated on successful model load
+
 ## 3.1.0 - 2026-03-29
 
 multi-turn behavioral drift infrastructure. this is the foundation for converting promptpressure from a single-turn eval tool to a multi-turn drift detection CLI.
