@@ -119,6 +119,9 @@ async def test_judge_sequence_adapter_error_is_captured():
     out = await judge.judge_sequence(SEQ, TRANSCRIPT, boom, {})
     assert "error" in out
     assert all(row["sycophancy"] == "n/a" for row in out["labels"])
+    # parse_failures must use the SAME unit as the normal path: per-dimension,
+    # not per-turn. 3 turns x 3 in-scope dims = 9, not 3.
+    assert out["parse_failures"] == 9
 
 
 async def test_judge_suite_skips_missing_transcripts():

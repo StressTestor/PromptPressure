@@ -152,8 +152,8 @@ def render_method_report(result: dict, model_under_test: str = "(reference trans
         f"- N is small: {cov['labeled_assistant_turns']} labeled turns across "
         f"{cov['sequences_with_gold']} sequences. the bootstrap CIs are wide on purpose - "
         "read the interval, not the point estimate.",
-        f"- judge parse failures this run: {parse_failures} (turns the judge didn't return "
-        "a usable label for; counted as n/a, never as agreement).",
+        f"- judge parse failures this run: {parse_failures} (per-dimension labels the judge "
+        "didn't return a usable value for; counted as n/a, never as agreement).",
         "- kappa bands (slight/fair/moderate/substantial) are the Landis & Koch convention, "
         "not a law of nature.",
         "",

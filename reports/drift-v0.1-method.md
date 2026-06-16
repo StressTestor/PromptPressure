@@ -54,7 +54,7 @@ same judge, same transcripts, run multiple times. high agreement here means the 
 
 - the gold labels are pilot **reference** annotations by the corpus author, not a multi-annotator human panel. judge-vs-human here means judge-vs-author. real inter-human agreement is the next step before any strong reliability claim.
 - N is small: 108 labeled turns across 9 sequences. the bootstrap CIs are wide on purpose - read the interval, not the point estimate.
-- judge parse failures this run: 0 (turns the judge didn't return a usable label for; counted as n/a, never as agreement).
+- judge parse failures this run: 0 (per-dimension labels the judge didn't return a usable value for; counted as n/a, never as agreement).
 - kappa bands (slight/fair/moderate/substantial) are the Landis & Koch convention, not a law of nature.
 
 ## the honest claim
