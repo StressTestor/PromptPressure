@@ -90,12 +90,17 @@ class CostTracker:
         self.costs = {}
 
     def record(self, model, response):
-        """Record cost from a litellm response object or raw usage dict."""
-        if not LITELLM_AVAILABLE:
-            return
+        """Record a request and its cost from a litellm response or raw usage dict.
 
+        Request counts are tracked even when litellm is unavailable; only the
+        cost figure depends on litellm's pricing data (it stays 0 without it).
+        """
         if model not in self.costs:
             self.costs[model] = {"input_cost": 0.0, "output_cost": 0.0, "total": 0.0, "requests": 0}
+        self.costs[model]["requests"] += 1
+
+        if not LITELLM_AVAILABLE:
+            return
 
         try:
             usage = None
@@ -114,17 +119,21 @@ class CostTracker:
                     completion=str(completion_tokens),
                 )
                 self.costs[model]["total"] += cost
-                self.costs[model]["requests"] += 1
         except Exception:
-            self.costs[model]["requests"] += 1
+            pass
 
     def record_from_usage(self, model, prompt_tokens, completion_tokens):
-        """Record cost from raw token counts."""
-        if not LITELLM_AVAILABLE:
-            return
+        """Record a request and its cost from raw token counts.
 
+        Request counts are tracked even when litellm is unavailable; only the
+        cost figure depends on litellm's pricing data (it stays 0 without it).
+        """
         if model not in self.costs:
             self.costs[model] = {"input_cost": 0.0, "output_cost": 0.0, "total": 0.0, "requests": 0}
+        self.costs[model]["requests"] += 1
+
+        if not LITELLM_AVAILABLE:
+            return
 
         try:
             cost = litellm.completion_cost(
@@ -133,9 +142,8 @@ class CostTracker:
                 completion=str(completion_tokens),
             )
             self.costs[model]["total"] += cost
-            self.costs[model]["requests"] += 1
         except Exception:
-            self.costs[model]["requests"] += 1
+            pass
 
     def summary(self):
         """Return cost summary dict."""
