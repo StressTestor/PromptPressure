@@ -14,3 +14,7 @@ venv/
 dist/
 build/
 *.egg-info/
+
+# local debate / scratch
+.debate/
+outputs/*.zip
