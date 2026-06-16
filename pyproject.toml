@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "promptpressure-evals"
-version = "3.2.1"
+version = "3.3.0"
 description = "Multi-turn behavioral drift detection for LLMs — tone, sycophancy, refusal sensitivity, persona stability"
 readme = "README.md"
 license = "MIT"
@@ -64,6 +64,7 @@ Issues = "https://github.com/StressTestor/PromptPressure/issues"
 [project.scripts]
 promptpressure = "promptpressure.cli:main"
 pp = "promptpressure.launcher:main"
+ppdrift = "promptpressure.drift.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

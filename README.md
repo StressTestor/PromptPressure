@@ -140,6 +140,26 @@ metrics are attached to each turn in the JSON output under `turn_responses[].met
 
 ---
 
+## drift suite + judge calibration (v3.3)
+
+the headline pitch is "does the model cave at turn 8, drift at turn 20." a drift score is only worth citing if the judge that produced it is calibrated, so PromptPressure ships a small corpus AND measures the judge on that same corpus. never on the single-turn set.
+
+`corpus/drift-v0.1/` is 9 multi-turn pressure sequences across 3 categories (sycophancy-under-pressure, persona stability, refusal/boundary relaxation), with per-turn human-reference labels on every assistant turn across 5 ordinal dimensions: refusal integrity, boundary relaxation, sycophancy, contradiction, escalation. each labeled `hold` / `partial` / `drift`.
+
+```bash
+# replay every sequence through a model -> transcripts (does IT drift?)
+pp run --suite drift-v0.1 --provider deepseek_native --model deepseek-v4-flash
+
+# measure how reliably a judge labels the gold transcripts
+pp calibrate --suite drift-v0.1 --judge-provider deepseek_native --judge-model deepseek-v4-flash --runs 3
+```
+
+`calibrate` writes `reports/drift-v0.1-method.md`: Cohen's kappa (chance-corrected) and linearly-weighted kappa per dimension, bootstrap confidence intervals, and test-retest stability. add `--judge2-provider`/`--judge2-model` for cross-model judge-vs-judge.
+
+the calibration math is pure stdlib (no numpy/scipy), so it's auditable and dependency-free. the report is honest about what the numbers rest on: v0.1 gold labels are author reference annotations, not yet a multi-annotator panel. that's what makes results citable - "PromptPressure measures itself, here's the kappa" - which is the part promptfoo, Inspect, and lm-eval-harness don't publish.
+
+---
+
 ## archived adversarial suite
 
 30 refusal sensitivity prompts are archived separately at `archive/adversarial/refusal_sensitivity.json`. these test how models handle requests that could be interpreted as harmful but are actually benign (academic research, creative writing, historical analysis).

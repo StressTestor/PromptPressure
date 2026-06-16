@@ -25,7 +25,8 @@ PromptPressure is a behavioral eval harness for LLMs -- measures refusal sensiti
 
 entry points (from pyproject.toml):
 - `promptpressure` -> `promptpressure.cli:main` (config-driven headless runner)
-- `pp` -> `promptpressure.launcher:main` (GUI launcher with subprocess + browser open)
+- `pp` -> `promptpressure.launcher:main` (GUI launcher with subprocess + browser open; also dispatches `pp run` / `pp calibrate` to the drift CLI)
+- `ppdrift` -> `promptpressure.drift.cli:main` (drift suite: run + calibrate)
 
 ---
 
@@ -57,11 +58,21 @@ PromptPressure/
 │   │   ├── openrouter_adapter.py
 │   │   ├── groq_adapter.py
 │   │   ├── openai_adapter.py
-│   │   ├── deepseek_r1_adapter.py
+│   │   ├── deepseek_r1_adapter.py   # DeepSeek via OpenRouter (reasoning capture)
+│   │   ├── deepseek_adapter.py      # DeepSeek NATIVE api (api.deepseek.com)
 │   │   ├── claude_code_adapter.py
 │   │   ├── opencode_adapter.py
 │   │   ├── litellm_adapter.py
 │   │   └── lmstudio_adapter.py
+│   ├── drift/                # v3.3 multi-turn drift suite + judge calibration
+│   │   ├── dimensions.py     # 5 drift dimensions + ordinal hold/partial/drift labels
+│   │   ├── schema.py         # load + validate sequences and gold labels
+│   │   ├── runner.py         # replay a sequence through a model -> transcript
+│   │   ├── judge.py          # LLM-as-judge labels each assistant turn
+│   │   ├── calibration.py    # Cohen/weighted kappa, bootstrap CI, test-retest (pure stdlib)
+│   │   ├── pipeline.py       # tie gold + judge labels -> calibration result
+│   │   ├── report.py         # render reports/<suite>-method.md
+│   │   └── cli.py            # `pp run` / `pp calibrate`
 │   ├── monitoring/           # prometheus / health monitoring hooks
 │   ├── plugins/              # plugin system (PluginManager, install/list)
 │   └── templates/            # jinja2 report templates
@@ -69,12 +80,18 @@ PromptPressure/
 │   ├── index.html            # single-page launcher form
 │   ├── app.js                # provider/model/eval-set fetch + SSE client
 │   └── styles.css            # minimal overrides on top of Tailwind
-├── tests/                    # pytest suite (191 tests)
+├── tests/                    # pytest suite (286 tests)
 │   ├── conftest.py           # sets PROMPTPRESSURE_DEV_NO_AUTH=1 for all tests
 │   └── test_*.py             # unit + integration tests per module
 ├── configs/                  # per-run YAML configs (adapter, model, dataset, tiers)
 ├── data/                     # SQLite db lives here at runtime (gitignored)
 ├── outputs/                  # CSV + HTML run outputs (gitignored)
+├── corpus/                   # versioned drift suites
+│   └── drift-v0.1/           # 9 multi-turn sequences (3 categories) + gold labels
+│       ├── schema.json       # sequence + gold JSON schema
+│       ├── sequences/        # syc-*/per-*/ref-*.json (pressure conversations)
+│       └── gold/             # per-turn human-reference labels + reference transcripts
+├── reports/                  # generated method/calibration reports
 ├── evals_dataset.json        # default eval dataset (200 multi-turn sequences)
 ├── evals_tone_sycophancy.json # sycophancy eval dataset
 ├── pyproject.toml            # project metadata, deps, entry points
@@ -150,6 +167,27 @@ named events (`start_prompt`, `end_prompt`) are sent as `event: <name>\ndata: ..
 
 `/models?provider=<id>` returns `free_text: true` + a suggestions list for all providers except Ollama. suggestions come from `adapter:` field matches in `configs/*.yaml`. Ollama returns an actual model list via the local API.
 
+### drift suite + judge calibration (v3.3)
+
+the `drift/` package is a self-contained vertical slice for multi-turn behavioral
+drift. it never touches the single-turn corpus.
+
+- a **suite** is a directory (`corpus/drift-v0.1/`) of `sequences/*.json` (escalating
+  user-pressure conversations + per-turn rubric) and `gold/*.json` (a reference
+  transcript + per-turn human labels). `schema.load_suite()` validates both strictly.
+- every assistant turn is labeled on its in-scope dimensions using an ordinal scale:
+  `hold` (0) / `partial` (1) / `drift` (2), plus `n/a` for out-of-scope dimensions
+  (excluded pairwise from agreement).
+- the 5 dimensions: refusal_integrity, boundary_relaxation, sycophancy, contradiction,
+  escalation. each sequence declares `dimensions_in_scope`.
+- `pp run` replays each sequence through a model (`runner.py`) -> transcripts.
+- `pp calibrate` judges transcripts (`judge.py`, one injection-hardened call per
+  sequence) N times, then `calibration.py` computes Cohen's kappa, linearly-weighted
+  kappa, bootstrap CIs, and test-retest stability. `pipeline.py` aggregates
+  judge-vs-human + test-retest (+ optional judge-vs-judge); `report.py` renders
+  `reports/drift-v0.1-method.md`.
+- calibration math is **pure stdlib** (no numpy/scipy) so it's auditable and dependency-free.
+
 ### config / tier system
 
 `configs/*.yaml` files drive headless runs. `Settings` (pydantic-settings) validates the full config dict. the `tier` field (`smoke` / `quick` / `full` / `deep`) filters the dataset down to a subset by sequence count -- e.g. `quick` uses 3/200 sequences in CI.
@@ -219,7 +257,7 @@ relationships:
 | `OPENROUTER_API_KEY` | server | OpenRouter adapter key |
 | `OPENAI_API_KEY` | server | OpenAI adapter key |
 | `ANTHROPIC_API_KEY` | server | Claude / LiteLLM adapter key |
-| `DEEPSEEK_API_KEY` | server | DeepSeek via LiteLLM key |
+| `DEEPSEEK_API_KEY` | server | DeepSeek native API key (`deepseek_native` adapter, api.deepseek.com); also used by LiteLLM |
 | `GOOGLE_API_KEY` | server | Google via LiteLLM key |
 | `XAI_API_KEY` | server | xAI via LiteLLM key |
 | `OLLAMA_BASE_URL` | server | ollama host (default: http://localhost:11434) |
@@ -267,7 +305,8 @@ runs a headless eval from a YAML config file, writes CSV + HTML to `outputs/`.
 | LiteLLM proxy | multi-provider routing | optional `LITELLM_API_KEY` |
 | Ollama | local inference | none (HTTP on localhost) |
 | LM Studio | local inference | none (HTTP on localhost) |
-| DeepSeek | via OpenRouter | `OPENROUTER_API_KEY` |
+| DeepSeek (native) | LLM inference (api.deepseek.com) | `DEEPSEEK_API_KEY` |
+| DeepSeek (via OpenRouter) | reasoning-capture R1 routing | `OPENROUTER_API_KEY` |
 
 ---
 
@@ -311,4 +350,4 @@ pip install -e ".[dev,litellm]"
 
 ---
 
-*last updated: 2026-04-28 -- launcher v3.1.0 implementation*
+*last updated: 2026-06-16 -- v3.3.0 drift suite + judge calibration*

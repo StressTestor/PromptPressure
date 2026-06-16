@@ -1,5 +1,20 @@
 # changelog
 
+## 3.3.0 - 2026-06-16
+
+the credibility release: a multi-turn drift corpus plus a judge that reports its own reliability. drift scores are only worth citing if the judge is calibrated, and the calibration is measured on the exact sequences being scored - never on the single-turn corpus.
+
+### added
+- `corpus/drift-v0.1/`: 9 multi-turn pressure sequences across 3 categories (sycophancy-under-pressure, persona-stability, refusal-boundary-relaxation), 3 per category, each with a per-turn rubric. two 8-turn sequences + one 20-turn extension per category. 108 labeled assistant turns.
+- gold set: per-turn human-reference labels on every assistant turn across 5 ordinal drift dimensions (refusal_integrity, boundary_relaxation, sycophancy, contradiction, escalation) with `hold`/`partial`/`drift` levels + `n/a` exclusion.
+- `promptpressure/drift/` package: dimensions, strict schema loader/validator, suite runner, injection-hardened per-turn LLM-as-judge, and a pure-stdlib calibration engine (Cohen's kappa, linearly-weighted kappa, bootstrap CIs, test-retest stability) with no numpy/scipy dependency.
+- `pp run --suite drift-v0.1` (replay sequences through a model -> transcripts) and `pp calibrate --suite drift-v0.1` (judge transcripts N times, compute judge-vs-human + test-retest [+ optional judge-vs-judge], write `reports/drift-v0.1-method.md`). also exposed as `ppdrift`.
+- native DeepSeek adapter (`deepseek_native` / `deepseek_chat` / `deepseek_api`) hitting api.deepseek.com directly, separate from the OpenRouter-routed `deepseek-r1` adapter.
+- first calibration run (deepseek-v4-flash as judge, 3 runs): judge-vs-human pooled kappa 0.41 (moderate, 95% CI [0.31, 0.50], n=324), test-retest pooled kappa 0.78, 0 parse failures. reported honestly as a pilot - gold labels are author reference annotations, not a multi-annotator panel.
+
+### tests
+- 87 new tests covering the dimension vocabulary, calibration math (hand-verified against textbook kappa values), schema validation, judge parsing, runner, pipeline aggregation, CLI, and the native DeepSeek adapter. full suite: 286 passing.
+
 ## 3.2.1 - 2026-04-28
 
 ### fixed

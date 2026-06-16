@@ -74,6 +74,14 @@ def wait_for_health(port: int, timeout: float = HEALTH_TIMEOUT_SECONDS) -> bool:
 
 
 def main() -> int:
+    # Subcommand dispatch: `pp run ...` / `pp calibrate ...` drive the drift
+    # suite. Anything else (incl. no args) is the browser launcher. We check
+    # argv before argparse so the launcher parser never sees the subcommands.
+    argv = sys.argv[1:]
+    if argv and argv[0] in ("run", "calibrate"):
+        from promptpressure.drift.cli import main as drift_main
+        return drift_main(argv)
+
     parser = argparse.ArgumentParser(
         prog="pp",
         description="PromptPressure launcher: spawns the API and opens a browser. Binds 127.0.0.1 only.",
