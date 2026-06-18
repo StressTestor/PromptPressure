@@ -51,7 +51,10 @@ jobs:
           fi
 
           echo "RELEASE_TAG=$release_tag" >> "$GITHUB_ENV"
-          echo "APP_VERSION=${release_tag#v}" >> "$GITHUB_ENV"
+          app_version="${release_tag#v}"
+          app_version="${app_version%%-*}"
+          app_version="${app_version%%+*}"
+          echo "APP_VERSION=$app_version" >> "$GITHUB_ENV"
           echo "APP_BUILD=$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
 
       - name: Set up Python
@@ -157,23 +160,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          target_args=()
-          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-            target_args=(--target "$GITHUB_SHA")
-          fi
-          release_flags=()
-          if [[ "$RELEASE_TAG" == *-* ]]; then
-            release_flags=(--prerelease)
-          fi
 
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" "$DMG_PATH" "$CHECKSUM_PATH" --clobber
           else
-            gh release create "$RELEASE_TAG" \
-              "${target_args[@]}" \
-              "${release_flags[@]}" \
-              "$DMG_PATH" \
-              "$CHECKSUM_PATH" \
-              --title "PromptPressure ${RELEASE_TAG}" \
+            create_args=(
+              "$RELEASE_TAG"
+              "$DMG_PATH"
+              "$CHECKSUM_PATH"
+              --title "PromptPressure ${RELEASE_TAG}"
               --notes-file release-notes.md
+            )
+            if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+              create_args+=(--target "$GITHUB_SHA")
+            fi
+            if [[ "$RELEASE_TAG" == *-* ]]; then
+              create_args+=(--prerelease)
+            fi
+            gh release create "${create_args[@]}"
           fi
