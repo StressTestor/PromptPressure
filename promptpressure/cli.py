@@ -46,10 +46,20 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
         turn_delay: Seconds between turns in multi-turn sequences.
         max_retries: Max retries on retryable errors (429, 503).
     """
-    # Load prompts
-    dataset_file = config.get("dataset", "evals_dataset.json")
-    with open(dataset_file, "r", encoding="utf-8") as f:
-        prompts = json.load(f)
+    # Load prompts. Native app jobs can pass multiple eval sets; keep the
+    # existing single-dataset field as the primary label/output fallback.
+    dataset_files = config.get("eval_set_ids") or [config.get("dataset", "evals_dataset.json")]
+    prompts = []
+    for dataset_file in dataset_files:
+        with open(dataset_file, "r", encoding="utf-8") as f:
+            loaded = json.load(f)
+        if not isinstance(loaded, list):
+            continue
+        for entry in loaded:
+            if isinstance(entry, dict):
+                item = dict(entry)
+                item.setdefault("eval_set_id", dataset_file)
+                prompts.append(item)
 
     # Tier filtering
     tier = config.get("tier", "quick")
@@ -116,7 +126,7 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
     ) and not k.startswith("_")}
     async for session in get_db_session(engine):
         db_eval = Evaluation(
-            id=str(uuid4()),
+            id=str(config.get("_evaluation_id") or uuid4()),
             timestamp=datetime.utcnow(),
             config_snapshot=json.loads(json.dumps(safe_config, default=str)),
             status="running"
@@ -139,13 +149,18 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
 
     # Callback support for event streaming
     log_callback = config.get("_callback")
+    is_cancelled = config.get("_is_cancelled") or (lambda: False)
     
     async def emit_event(event_type, data):
+        if is_cancelled():
+            raise asyncio.CancelledError()
         if log_callback:
             await log_callback(event_type, data)
 
     async def process_entry(entry):
         async with sem:
+            if is_cancelled():
+                raise asyncio.CancelledError()
             prompt_data = entry.get("prompt") or entry.get("input")
             if not prompt_data:
                 return None
@@ -158,6 +173,8 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
                 return await _process_single_turn(entry, prompt_data)
 
     async def _process_single_turn(entry, prompt_text):
+        if is_cancelled():
+            raise asyncio.CancelledError()
         await emit_event("start_prompt", {"id": entry.get("id"), "prompt": prompt_text[:50]})
 
         record_prompt_processing()
@@ -235,8 +252,12 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
             # request delay to space out calls
             if request_delay > 0:
                 await asyncio.sleep(request_delay)
+            if is_cancelled():
+                raise asyncio.CancelledError()
 
             async def _do_call():
+                if is_cancelled():
+                    raise asyncio.CancelledError()
                 return await adapter_fn(prompt_text, config)
 
             response, retries_used = await retry_with_backoff(
@@ -354,6 +375,8 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
 
     async def _process_multi_turn(entry, turns):
         """Process a multi-turn prompt sequence, accumulating conversation history."""
+        if is_cancelled():
+            raise asyncio.CancelledError()
         await emit_event("start_prompt", {"id": entry.get("id"), "prompt": f"[multi-turn: {len(turns)} turns]"})
 
         record_prompt_processing()
@@ -365,6 +388,8 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
         mt_error_type = None
 
         for turn_idx, turn in enumerate(turns, 1):
+            if is_cancelled():
+                raise asyncio.CancelledError()
             turn_content = turn.get("content", "")
             turn_role = turn.get("role", "user")
 
@@ -374,6 +399,8 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
             # turn delay to avoid rate limits on rapid sequential requests
             if turn_idx > 1 and turn_delay > 0:
                 await asyncio.sleep(turn_delay)
+            if is_cancelled():
+                raise asyncio.CancelledError()
 
             try:
                 # Timeout scales with turn count, capped at 5x base
@@ -381,6 +408,8 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
                 turn_timeout = min(base_timeout * (1 + turn_idx * 0.5), base_timeout * 5)
 
                 async def _do_turn_call():
+                    if is_cancelled():
+                        raise asyncio.CancelledError()
                     try:
                         return await asyncio.wait_for(
                             adapter_fn(turn_content, config, messages=list(conversation)),
@@ -561,6 +590,8 @@ async def run_evaluation_suite(config, adapter_name, batch_mode=False, request_d
     original_process = process_entry
 
     async def process_with_progress(entry):
+        if is_cancelled():
+            raise asyncio.CancelledError()
         result = await original_process(entry)
         pbar.update(1)
         return result

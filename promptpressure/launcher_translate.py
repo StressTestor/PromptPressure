@@ -57,6 +57,7 @@ def launcher_to_settings_dict(req: LauncherRequest, run_id: str) -> dict:
         "model": req.model,
         "model_name": req.model,
         "dataset": req.eval_set_ids[0],
+        "eval_set_ids": list(req.eval_set_ids),
         "output": f"launcher_{run_id}.csv",
         "output_dir": "outputs",
         "temperature": 0.7,

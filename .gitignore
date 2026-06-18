@@ -14,6 +14,8 @@ venv/
 dist/
 build/
 *.egg-info/
+.build/
+DerivedData/
 
 # local debate / scratch
 .debate/

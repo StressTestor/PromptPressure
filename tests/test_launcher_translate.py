@@ -48,8 +48,7 @@ def test_launcher_tier_runs_untagged_datasets():
     assert skipped == 0
 
 
-def test_multi_dataset_uses_first_with_note():
-    """v1 takes the first eval set. Multi-set merging is a v2 TODO."""
+def test_multi_dataset_preserves_all_ids_for_native_jobs():
     req = LauncherRequest(
         provider="ollama",
         model="llama3.2:1b",
@@ -58,6 +57,7 @@ def test_multi_dataset_uses_first_with_note():
     settings = launcher_to_settings_dict(req, run_id="def-456")
 
     assert settings["dataset"] == "evals_dataset.json"
+    assert settings["eval_set_ids"] == ["evals_dataset.json", "evals_tone_sycophancy.json"]
 
 
 def test_provider_normalized_to_adapter_name():

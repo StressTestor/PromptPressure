@@ -95,7 +95,8 @@ def test_providers_returns_list(client):
     body = r.json()
     ids = {p["id"] for p in body}
     assert {"ollama", "openrouter", "groq", "mock", "litellm",
-            "openai", "deepseek", "claude_code", "opencode", "lmstudio"} >= ids
+            "openai", "deepseek_native", "deepseek", "claude_code",
+            "opencode", "lmstudio"} >= ids
     assert {"ollama", "mock"} <= ids
 
 
@@ -114,6 +115,17 @@ def test_providers_groq_unavailable_without_key(client, monkeypatch):
     groq_entry = next(p for p in r.json() if p["id"] == "groq")
     assert groq_entry["available"] is False
     assert "GROQ_API_KEY" in (groq_entry.get("reason") or "")
+
+
+def test_providers_deepseek_native_uses_deepseek_key(client, monkeypatch):
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    from promptpressure.api import _providers_cache
+    _providers_cache.clear()
+    r = client.get("/providers")
+    entry = next(p for p in r.json() if p["id"] == "deepseek_native")
+    assert entry["available"] is False
+    assert "DEEPSEEK_API_KEY" in (entry.get("reason") or "")
+    assert "DEEPSEEK_API_KEY" in entry["remediation_hint"]
 
 
 def test_models_unknown_provider_returns_400(client):
@@ -136,6 +148,17 @@ def test_models_openrouter_returns_free_text_with_suggestions(client):
     assert isinstance(body["models"], list)
     # The note should mention typing
     assert "type" in (body.get("note") or "").lower()
+
+
+def test_models_deepseek_native_returns_common_models(client):
+    from promptpressure.api import _models_cache
+    _models_cache.clear()
+    r = client.get("/models?provider=deepseek_native")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["free_text"] is True
+    assert "deepseek-chat" in body["models"]
+    assert "deepseek-reasoner" in body["models"]
 
 
 def test_models_cache_keyed_by_provider(client):

@@ -1,6 +1,7 @@
 # PromptPressure
 
 [![CI](https://github.com/StressTestor/PromptPressure/actions/workflows/ci.yml/badge.svg)](https://github.com/StressTestor/PromptPressure/actions/workflows/ci.yml)
+[![macOS DMG Release](https://github.com/StressTestor/PromptPressure/actions/workflows/macos-dmg-release.yml/badge.svg)](https://github.com/StressTestor/PromptPressure/actions/workflows/macos-dmg-release.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
 
@@ -67,6 +68,93 @@ stop with Ctrl-C in the terminal that started `pp`. the server subprocess gets S
 known v1 limitation: if you reload the browser mid-run, the EventSource auto-reconnects to the same `run_id` and resumes - but only within 5 minutes after the run completes. after that, the run state has been cleaned up. check `/evaluations/{run_id}` for completed runs.
 
 `pp --help` and `pp --version` work as expected.
+
+## macOS native app
+
+the native workbench is a SwiftUI app for macOS 14+. it keeps the Python engine
+as a local FastAPI sidecar, but gives the run workflow a real Mac surface:
+provider setup, model and multi-suite selection, authoritative job status, live
+SSE progress, server-side cancel, retry, in-app eval/output viewing, Drift
+Studio, reports, plugins, Ollama, diagnostics, settings, and themes.
+
+```bash
+pip install -e ".[dev]"
+swift run PromptPressureChecks
+./script/build_and_run.sh
+```
+
+the script builds a SwiftPM GUI app, stages `dist/PromptPressure.app`, writes a
+dev sidecar config that points at this checkout, and opens the app. package a
+DMG with:
+
+```bash
+./script/package_dmg.sh
+```
+
+set `DEVELOPER_ID_APPLICATION` and `NOTARYTOOL_PROFILE` if you want that script
+to sign, submit to notarytool, and staple the DMG.
+
+release DMGs are built by GitHub Actions in
+`.github/workflows/macos-dmg-release.yml`. push a version tag such as
+`v0.1.0`, or run the workflow manually with a tag, and it will run Python tests,
+run Swift checks, package `PromptPressure-vX.Y.Z.dmg`, upload the DMG as a
+workflow artifact, and attach it plus a SHA-256 checksum to a GitHub Release.
+The current DMG uses the existing dev-sidecar packaging path, so it is suitable
+for internal release testing; the fully self-contained Python runtime bundle is
+the next production-distribution step.
+tags with a suffix, like `v3.3.0-macos.1`, are marked as prereleases.
+
+signing and notarization are optional but automatic when these repository
+secrets exist:
+
+| secret | purpose |
+|--------|---------|
+| `APPLE_DEVELOPER_ID_APPLICATION_P12` | base64-encoded Developer ID Application certificate |
+| `APPLE_CERTIFICATE_PASSWORD` | password for that `.p12` |
+| `APPLE_KEYCHAIN_PASSWORD` | temporary CI keychain password |
+| `DEVELOPER_ID_APPLICATION` | codesign identity string |
+| `APPLE_ID` | Apple ID used by `notarytool` |
+| `APPLE_TEAM_ID` | Apple developer team id |
+| `APPLE_APP_SPECIFIC_PASSWORD` | app-specific password for notarization |
+| `NOTARYTOOL_PROFILE` | optional profile name; defaults to `promptpressure-ci` |
+
+app data lives in:
+
+```text
+~/Library/Application Support/PromptPressure/
+├── data/
+├── outputs/
+├── providers/
+└── themes/
+```
+
+provider keys are stored in macOS Keychain from Settings. existing `.env` files
+can be imported; the app injects those secrets only into the sidecar process
+environment at run time.
+
+the built-in provider setup path covers mock, Ollama, OpenRouter, Groq, OpenAI,
+DeepSeek native API, DeepSeek R1 via OpenRouter, Claude Code, OpenCode, LM
+Studio, and LiteLLM. the model picker refreshes through `/models`: Ollama is
+listed live, built-in API providers get common model suggestions, and any
+provider can still accept a typed model id.
+
+custom providers mirror theme injection: files in
+`~/Library/Application Support/PromptPressure/providers/` ending in
+`.pp-provider.json`, with a narrow schema for provider id, display name, API
+style (`openai_chat`, `anthropic_messages`, `gemini_generate_content`,
+`openai_responses`, or local OpenAI-compatible), base URL, key env var, and
+default model suggestions. invalid provider files are reported in the app
+without blocking launch.
+
+native app runs use `/app/jobs/*`, not the browser-launcher `/evaluate` path.
+jobs have `queued`, `running`, `finalizing`, `completed`, `failed`, and
+`cancelled` states, and the app reconciles against job detail if an SSE stream
+misses the terminal event.
+
+custom themes are plain JSON files ending in `.pp-theme.json` placed in the
+themes folder. theme files can control base, accent, density, chart intensity,
+and optional surface/text tokens. `hold`, `partial`, and `drift` colors are
+locked so score semantics stay readable across themes.
 
 ---
 

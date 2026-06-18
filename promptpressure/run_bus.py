@@ -20,6 +20,10 @@ import time
 from typing import Any, AsyncIterator, Dict, Optional
 
 
+class RunCancelled(Exception):
+    """Raised when a run is cancelled by a client."""
+
+
 class RunBus:
     def __init__(
         self,
@@ -39,10 +43,41 @@ class RunBus:
             "completed": False,
             "completion_event": None,
             "last_active": time.monotonic(),
+            "cancel_requested": False,
+            "task": None,
         }
 
     def has(self, run_id: str) -> bool:
         return run_id in self._runs
+
+    def register_task(self, run_id: str, task: asyncio.Task) -> None:
+        entry = self._runs.get(run_id)
+        if entry is not None:
+            entry["task"] = task
+
+    def unregister_task(self, run_id: str) -> None:
+        entry = self._runs.get(run_id)
+        if entry is not None:
+            entry["task"] = None
+
+    def cancel(self, run_id: str) -> bool:
+        entry = self._runs.get(run_id)
+        if entry is None or entry["completed"]:
+            return False
+        entry["cancel_requested"] = True
+        entry["last_active"] = time.monotonic()
+        task = entry.get("task")
+        if task is not None and not task.done():
+            task.cancel()
+        return True
+
+    def is_cancelled(self, run_id: str) -> bool:
+        entry = self._runs.get(run_id)
+        return bool(entry and entry.get("cancel_requested"))
+
+    def raise_if_cancelled(self, run_id: str) -> None:
+        if self.is_cancelled(run_id):
+            raise RunCancelled(f"Run {run_id} was cancelled")
 
     async def publish(self, run_id: str, event: Dict[str, Any]) -> None:
         entry = self._runs.get(run_id)
