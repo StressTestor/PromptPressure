@@ -1,0 +1,255 @@
+{
+  "suite": "drift-v0.1",
+  "judge": "deepseek_native/deepseek-v4-flash",
+  "coverage": {
+    "sequences_total": 9,
+    "sequences_with_gold": 9,
+    "labeled_assistant_turns": 108,
+    "judge_runs": 3,
+    "judge_parse_failures": 0,
+    "categories": {
+      "sycophancy-under-pressure": [
+        "syc-01",
+        "syc-02",
+        "syc-03"
+      ],
+      "persona-stability": [
+        "per-01",
+        "per-02",
+        "per-03"
+      ],
+      "refusal-boundary-relaxation": [
+        "ref-01",
+        "ref-02",
+        "ref-03"
+      ]
+    }
+  },
+  "judge_vs_human": {
+    "per_dimension": {
+      "refusal_integrity": {
+        "n": 36,
+        "percent_agreement": 0.8055555555555556,
+        "kappa": 0.3571428571428573,
+        "kappa_linear": 0.5017301038062285,
+        "kappa_ci": [
+          2.220446049250313e-16,
+          0.6470588235294119
+        ],
+        "band": "fair"
+      },
+      "boundary_relaxation": {
+        "n": 72,
+        "percent_agreement": 0.7777777777777778,
+        "kappa": 0.32867132867132764,
+        "kappa_linear": 0.42348754448398507,
+        "kappa_ci": [
+          0.09741083223249518,
+          0.549812819058422
+        ],
+        "band": "fair"
+      },
+      "sycophancy": {
+        "n": 36,
+        "percent_agreement": 0.6111111111111112,
+        "kappa": 0.28000000000000025,
+        "kappa_linear": 0.4836065573770494,
+        "kappa_ci": [
+          0.0769230769230772,
+          0.4907437472575683
+        ],
+        "band": "fair"
+      },
+      "contradiction": {
+        "n": 72,
+        "percent_agreement": 0.7361111111111112,
+        "kappa": 0.4188615123194559,
+        "kappa_linear": 0.529970326409495,
+        "kappa_ci": [
+          0.23593853271645632,
+          0.5942164940044047
+        ],
+        "band": "moderate"
+      },
+      "escalation": {
+        "n": 108,
+        "percent_agreement": 0.8425925925925926,
+        "kappa": 0.5072463768115947,
+        "kappa_linear": 0.6303901437371666,
+        "kappa_ci": [
+          0.31398056294422955,
+          0.6723400264783763
+        ],
+        "band": "moderate"
+      }
+    },
+    "overall": {
+      "n": 324,
+      "percent_agreement": 0.7746913580246914,
+      "kappa": 0.40569877883310934,
+      "kappa_linear": 0.53903810118676,
+      "kappa_ci": [
+        0.311257515991939,
+        0.5037074023374722
+      ],
+      "band": "moderate"
+    }
+  },
+  "test_retest": {
+    "per_dimension": {
+      "refusal_integrity": {
+        "n_runs": 3,
+        "mean_kappa": 1.0,
+        "mean_percent_agreement": 1.0,
+        "pairs": [
+          {
+            "a": 0,
+            "b": 1,
+            "kappa": 1.0,
+            "percent_agreement": 1.0
+          },
+          {
+            "a": 0,
+            "b": 2,
+            "kappa": 1.0,
+            "percent_agreement": 1.0
+          },
+          {
+            "a": 1,
+            "b": 2,
+            "kappa": 1.0,
+            "percent_agreement": 1.0
+          }
+        ]
+      },
+      "boundary_relaxation": {
+        "n_runs": 3,
+        "mean_kappa": 0.8251644606483314,
+        "mean_percent_agreement": 0.9629629629629629,
+        "pairs": [
+          {
+            "a": 0,
+            "b": 1,
+            "kappa": 0.8064516129032255,
+            "percent_agreement": 0.9583333333333334
+          },
+          {
+            "a": 0,
+            "b": 2,
+            "kappa": 0.8636363636363634,
+            "percent_agreement": 0.9722222222222222
+          },
+          {
+            "a": 1,
+            "b": 2,
+            "kappa": 0.8054054054054052,
+            "percent_agreement": 0.9583333333333334
+          }
+        ]
+      },
+      "sycophancy": {
+        "n_runs": 3,
+        "mean_kappa": 0.7552594747688476,
+        "mean_percent_agreement": 0.9074074074074074,
+        "pairs": [
+          {
+            "a": 0,
+            "b": 1,
+            "kappa": 0.7142857142857144,
+            "percent_agreement": 0.8888888888888888
+          },
+          {
+            "a": 0,
+            "b": 2,
+            "kappa": 0.7931034482758621,
+            "percent_agreement": 0.9166666666666666
+          },
+          {
+            "a": 1,
+            "b": 2,
+            "kappa": 0.7583892617449666,
+            "percent_agreement": 0.9166666666666666
+          }
+        ]
+      },
+      "contradiction": {
+        "n_runs": 3,
+        "mean_kappa": 0.6526913216446217,
+        "mean_percent_agreement": 0.8796296296296297,
+        "pairs": [
+          {
+            "a": 0,
+            "b": 1,
+            "kappa": 0.6824696802646084,
+            "percent_agreement": 0.8888888888888888
+          },
+          {
+            "a": 0,
+            "b": 2,
+            "kappa": 0.6433681893230596,
+            "percent_agreement": 0.875
+          },
+          {
+            "a": 1,
+            "b": 2,
+            "kappa": 0.6322360953461972,
+            "percent_agreement": 0.875
+          }
+        ]
+      },
+      "escalation": {
+        "n_runs": 3,
+        "mean_kappa": 0.8196054586883298,
+        "mean_percent_agreement": 0.9506172839506174,
+        "pairs": [
+          {
+            "a": 0,
+            "b": 1,
+            "kappa": 0.7933673469387758,
+            "percent_agreement": 0.9444444444444444
+          },
+          {
+            "a": 0,
+            "b": 2,
+            "kappa": 0.9016990291262137,
+            "percent_agreement": 0.9722222222222222
+          },
+          {
+            "a": 1,
+            "b": 2,
+            "kappa": 0.7637500000000002,
+            "percent_agreement": 0.9351851851851852
+          }
+        ]
+      }
+    },
+    "overall": {
+      "n_runs": 3,
+      "mean_kappa": 0.7779517641984168,
+      "mean_percent_agreement": 0.9382716049382717,
+      "pairs": [
+        {
+          "a": 0,
+          "b": 1,
+          "kappa": 0.7673846153846162,
+          "percent_agreement": 0.9351851851851852
+        },
+        {
+          "a": 0,
+          "b": 2,
+          "kappa": 0.8154402895054289,
+          "percent_agreement": 0.9475308641975309
+        },
+        {
+          "a": 1,
+          "b": 2,
+          "kappa": 0.7510303877052052,
+          "percent_agreement": 0.9320987654320988
+        }
+      ]
+    },
+    "n_runs": 3
+  },
+  "transcript_source": "gold reference transcripts",
+  "judge_temperature": 0.7
+}

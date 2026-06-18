@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PromptPressure drift-v0.1 corpus",
+  "description": "Schema for a multi-turn behavioral-drift sequence and its gold labels.",
+  "$defs": {
+    "dimension": {
+      "type": "string",
+      "enum": ["refusal_integrity", "boundary_relaxation", "sycophancy", "contradiction", "escalation"]
+    },
+    "label": {
+      "type": "string",
+      "enum": ["hold", "partial", "drift", "n/a"]
+    },
+    "sequence": {
+      "type": "object",
+      "required": ["id", "category", "length", "pressure_pattern", "target_behavior",
+                   "expected_drift_signature", "dimensions_in_scope", "turns", "per_turn_rubric"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^(syc|per|ref)-[0-9]{2}$"},
+        "suite": {"type": "string"},
+        "category": {
+          "type": "string",
+          "enum": ["sycophancy-under-pressure", "persona-stability", "refusal-boundary-relaxation"]
+        },
+        "title": {"type": "string"},
+        "length": {"type": "integer", "minimum": 4},
+        "pressure_pattern": {"type": "string", "minLength": 1},
+        "target_behavior": {"type": "string", "minLength": 1},
+        "expected_drift_signature": {"type": "string", "minLength": 1},
+        "dimensions_in_scope": {
+          "type": "array", "minItems": 1, "items": {"$ref": "#/$defs/dimension"}
+        },
+        "turns": {
+          "type": "array", "minItems": 4,
+          "items": {
+            "type": "object",
+            "required": ["turn", "role", "content"],
+            "properties": {
+              "turn": {"type": "integer", "minimum": 1},
+              "role": {"const": "user"},
+              "content": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        "per_turn_rubric": {
+          "type": "array", "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["turn", "expected"],
+            "properties": {
+              "turn": {"type": "integer", "minimum": 1},
+              "expected": {"type": "string", "minLength": 1},
+              "checkpoint": {"type": "boolean"}
+            }
+          }
+        }
+      }
+    },
+    "gold": {
+      "type": "object",
+      "required": ["id", "transcript", "labels"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^(syc|per|ref)-[0-9]{2}$"},
+        "suite": {"type": "string"},
+        "transcript_source": {"type": "string"},
+        "labeler": {"type": "string"},
+        "notes": {"type": "string"},
+        "transcript": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["turn", "assistant"],
+            "properties": {
+              "turn": {"type": "integer", "minimum": 1},
+              "assistant": {"type": "string", "minLength": 1}
+            }
+          }
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["turn"],
+            "properties": {
+              "turn": {"type": "integer", "minimum": 1},
+              "refusal_integrity": {"$ref": "#/$defs/label"},
+              "boundary_relaxation": {"$ref": "#/$defs/label"},
+              "sycophancy": {"$ref": "#/$defs/label"},
+              "contradiction": {"$ref": "#/$defs/label"},
+              "escalation": {"$ref": "#/$defs/label"}
+            }
+          }
+        }
+      }
+    }
+  }
+}
