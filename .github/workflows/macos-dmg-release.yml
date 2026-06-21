@@ -1,0 +1,181 @@
+name: macOS DMG Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create or update, for example v0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  APP_NAME: PromptPressure
+  APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_P12 }}
+  APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+  APPLE_KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+  DEVELOPER_ID_APPLICATION_SECRET: ${{ secrets.DEVELOPER_ID_APPLICATION }}
+  APPLE_ID: ${{ secrets.APPLE_ID }}
+  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+  APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+  NOTARYTOOL_PROFILE_NAME: ${{ secrets.NOTARYTOOL_PROFILE }}
+
+jobs:
+  build-release-dmg:
+    name: Build and publish DMG
+    runs-on: macos-14
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release tag
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            release_tag="${{ inputs.tag }}"
+          else
+            release_tag="$GITHUB_REF_NAME"
+          fi
+
+          if [[ ! "$release_tag" =~ ^v[0-9]+(\.[0-9]+){1,2}([-+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "release tag must look like v0.1.0 or v0.1.0-beta.1" >&2
+            exit 2
+          fi
+
+          echo "RELEASE_TAG=$release_tag" >> "$GITHUB_ENV"
+          app_version="${release_tag#v}"
+          app_version="${app_version%%-*}"
+          app_version="${app_version%%+*}"
+          echo "APP_VERSION=$app_version" >> "$GITHUB_ENV"
+          echo "APP_BUILD=$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Run Python tests
+        run: python -m pytest -q
+
+      - name: Run Swift checks
+        run: swift run PromptPressureChecks
+
+      - name: Import Developer ID certificate
+        if: ${{ env.APPLE_CERTIFICATE_BASE64 != '' && env.APPLE_CERTIFICATE_PASSWORD != '' && env.DEVELOPER_ID_APPLICATION_SECRET != '' }}
+        run: |
+          set -euo pipefail
+          keychain_password="${APPLE_KEYCHAIN_PASSWORD:-promptpressure-ci-keychain}"
+          keychain_path="$RUNNER_TEMP/app-signing.keychain-db"
+          certificate_path="$RUNNER_TEMP/developer-id-application.p12"
+
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security default-keychain -s "$keychain_path"
+
+          printf '%s' "$APPLE_CERTIFICATE_BASE64" | base64 --decode > "$certificate_path"
+          security import "$certificate_path" \
+            -k "$keychain_path" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$keychain_password" \
+            "$keychain_path"
+
+          echo "DEVELOPER_ID_APPLICATION=$DEVELOPER_ID_APPLICATION_SECRET" >> "$GITHUB_ENV"
+
+      - name: Configure notarization profile
+        if: ${{ env.APPLE_ID != '' && env.APPLE_TEAM_ID != '' && env.APPLE_APP_SPECIFIC_PASSWORD != '' }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${DEVELOPER_ID_APPLICATION:-}" ]]; then
+            echo "notarization skipped because no Developer ID signing identity was imported"
+            exit 0
+          fi
+          profile="${NOTARYTOOL_PROFILE_NAME:-promptpressure-ci}"
+          xcrun notarytool store-credentials "$profile" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD"
+          echo "NOTARYTOOL_PROFILE=$profile" >> "$GITHUB_ENV"
+
+      - name: Build DMG
+        run: |
+          set -euo pipefail
+          dmg_path="$(APP_VERSION="$APP_VERSION" APP_BUILD="$APP_BUILD" ./script/package_dmg.sh | tail -n 1)"
+          safe_tag="${RELEASE_TAG//\//-}"
+          release_dmg="dist/${APP_NAME}-${safe_tag}.dmg"
+          mv "$dmg_path" "$release_dmg"
+          shasum -a 256 "$release_dmg" > "$release_dmg.sha256"
+
+          echo "DMG_PATH=$release_dmg" >> "$GITHUB_ENV"
+          echo "CHECKSUM_PATH=$release_dmg.sha256" >> "$GITHUB_ENV"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-${{ env.RELEASE_TAG }}-dmg
+          path: |
+            ${{ env.DMG_PATH }}
+            ${{ env.CHECKSUM_PATH }}
+          if-no-files-found: error
+
+      - name: Write release notes
+        run: |
+          set -euo pipefail
+          signing_state="unsigned"
+          if [[ -n "${DEVELOPER_ID_APPLICATION:-}" ]]; then
+            signing_state="signed"
+          fi
+          if [[ -n "${NOTARYTOOL_PROFILE:-}" ]]; then
+            signing_state="$signing_state and notarized"
+          fi
+
+          cat > release-notes.md <<EOF
+          PromptPressure macOS DMG for ${RELEASE_TAG}.
+
+          - commit: ${GITHUB_SHA}
+          - macOS target: 14+
+          - package state: ${signing_state}
+          - checksum: attached as $(basename "$CHECKSUM_PATH")
+          EOF
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$DMG_PATH" "$CHECKSUM_PATH" --clobber
+          else
+            create_args=(
+              "$RELEASE_TAG"
+              "$DMG_PATH"
+              "$CHECKSUM_PATH"
+              --title "PromptPressure ${RELEASE_TAG}"
+              --notes-file release-notes.md
+            )
+            if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+              create_args+=(--target "$GITHUB_SHA")
+            fi
+            if [[ "$RELEASE_TAG" == *-* ]]; then
+              create_args+=(--prerelease)
+            fi
+            gh release create "${create_args[@]}"
+          fi
